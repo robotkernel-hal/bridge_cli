@@ -1,7 +1,8 @@
-#include "robotkernel/cli_bridge.h"
 #include "robotkernel/rk_type.h"
 #include "robotkernel/helpers.h"
 #include "robotkernel/service.h"
+
+#include "cli_bridge.h"
 #include "cli_server.h"
 
 #include <functional>
@@ -16,6 +17,7 @@ using namespace std;
 using namespace std::placeholders;
 using namespace robotkernel;
 
+BRIDGE_DEF(cli_bridge, cli_bridge::Client);
 
 namespace cli_bridge {
 
@@ -39,7 +41,8 @@ namespace cli_bridge {
     }
 
 
-    Client::Client() : cliServer(getPort()) {
+    Client::Client(const char*& bridgename, YAML::Node& node)
+		: bridge_base(bridgename, "bridge_cli", node), cliServer(this, getPort()) {
         robotkernel::service_provider_t *sp = new robotkernel::service_provider_t();
         sp->add_service = std::bind(&cli_bridge::Client::addService, this, _1);
         sp->remove_service = std::bind(&cli_bridge::Client::removeService, this, _1);
@@ -242,7 +245,7 @@ namespace cli_bridge {
                              string("'\n Use !help to get CLI instructions.\n");
                 }
             } else {
-                klog(info, "Calling: %s %s", svc->name.c_str(), svc->service_definition.c_str());
+                log(info, "Calling: %s %s", svc->name.c_str(), svc->service_definition.c_str());
 
                 service_arglist_t resp;
                 if (svc->callback(req, resp) != 0) {
@@ -256,7 +259,7 @@ namespace cli_bridge {
             c->write(result.c_str(), result.length());
         } catch (str_exception e) {
             const string &err = format_string("Exception in service call: %s\n%s\n", msg.c_str(), e.what());
-            klog(warning, "CliBridge: %s", err.c_str());
+            log(warning, "CliBridge: %s", err.c_str());
             c->write(err.c_str(), err.length());
         }
     }
