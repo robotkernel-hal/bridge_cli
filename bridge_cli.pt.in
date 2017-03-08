@@ -3,7 +3,7 @@ NAME                = @PACKAGE@
 VERSION             = @PACKAGE_VERSION@
 DESCRIPTION         = robotkernel @PACKAGE@
 MAINTAINER          = @MAINTAINER@
-DEPENDS             = links_and_nodes==@LINKS_AND_NODES_VERSION@
+DEPENDS             = 
 ARCHS               = @ARCHS@
 
 [install]
