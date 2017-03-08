@@ -1,0 +1,12 @@
+PTVERSION           = 2
+NAME                = @PACKAGE@
+VERSION             = @PACKAGE_VERSION@
+DESCRIPTION         = robotkernel @PACKAGE@
+MAINTAINER          = @MAINTAINER@
+DEPENDS             = links_and_nodes==@LINKS_AND_NODES_VERSION@
+ARCHS               = @ARCHS@
+
+[install]
+build/${ARCH}/install/lib => lib/${ARCH}
+doc
+share
