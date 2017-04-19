@@ -22,6 +22,7 @@
         }
 
 using namespace robotkernel;
+using namespace string_util;
 
 namespace cli_bridge {
     

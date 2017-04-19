@@ -6,13 +6,12 @@
 #define ROBOTKERNEL_CLI_BRIDGE_H
 
 
-#include "robotkernel/bridge_interface.h"
 #include "robotkernel/rk_type.h"
 #include "robotkernel/bridge_base.h"
 
 namespace cli_bridge {
     
-    class Client : public robotkernel::bridge_base, robotkernel::CommBridgeInterface{
+    class Client : public robotkernel::bridge_base {
     private:
         robotkernel::service_t* parseRequest(std::string &msg, robotkernel::service_arglist_t &req);
         void parseArgs(robotkernel::service_t &svc, std::string &args, robotkernel::service_arglist_t &req);
@@ -26,8 +25,8 @@ namespace cli_bridge {
         //! destruct cli_bridge client
         ~Client();
 
-        void addService(const robotkernel::service_t &svc);
-        void removeService(const robotkernel::service_t &svc);
+        void add_service(const robotkernel::service_t &svc);
+        void remove_service(const robotkernel::service_t &svc);
 
         void onCliMessage(cli_bridge::CliConnection* c, char* msg, ssize_t len);
         void onCliConnect(cli_bridge::CliConnection* c);

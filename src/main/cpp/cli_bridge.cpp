@@ -16,6 +16,7 @@
 using namespace std;
 using namespace std::placeholders;
 using namespace robotkernel;
+using namespace string_util;
 
 BRIDGE_DEF(cli_bridge, cli_bridge::Client);
 
@@ -34,18 +35,11 @@ namespace cli_bridge {
     const string TYPENAME_DOUBLE = string("double");
     const string TYPENAME_VECTOR = string("vector");
 
-
-    static int getPort() {
-        char *portStr = getenv("RK_CLI_PORT");
-        return portStr ? atoi(portStr) : 5094;
-    }
-
-
     Client::Client(const char*& bridgename, YAML::Node& node)
-		: bridge_base(bridgename, "bridge_cli", node), cliServer(this, getPort()) {
+		: bridge_base(bridgename, "bridge_cli", node), cliServer(this, get_as<int>(node, "port", 5094)) {
         robotkernel::bridge::cbs_t *sp = new robotkernel::bridge::cbs_t();
-        sp->add_service = std::bind(&cli_bridge::Client::addService, this, _1);
-        sp->remove_service = std::bind(&cli_bridge::Client::removeService, this, _1);
+        sp->add_service = std::bind(&cli_bridge::Client::add_service, this, _1);
+        sp->remove_service = std::bind(&cli_bridge::Client::remove_service, this, _1);
         robotkernel::kernel::get_instance()->add_bridge_cbs(sp);
 
         cliServer.onConnectHandler = std::bind(&cli_bridge::Client::onCliConnect, this, _1);
@@ -274,12 +268,12 @@ namespace cli_bridge {
     }
 
 
-    void Client::addService(const robotkernel::service_t &svc) {
+    void Client::add_service(const robotkernel::service_t &svc) {
         services[svc.name] = svc;
     }
 
 
-    void Client::removeService(const robotkernel::service_t &svc) {
+    void Client::remove_service(const robotkernel::service_t &svc) {
         services.erase(svc.name);
     }
 }
