@@ -37,7 +37,8 @@ namespace cli_bridge {
 
     Client::Client(const char*& bridgename, YAML::Node& node)
 		: bridge_base(bridgename, "bridge_cli", node), cliServer(this, get_as<int>(node, "port", 5094)) {
-        robotkernel::bridge::cbs_t *sp = new robotkernel::bridge::cbs_t();
+
+        sp = new robotkernel::bridge::cbs_t();
         sp->add_service = std::bind(&cli_bridge::Client::add_service, this, _1);
         sp->remove_service = std::bind(&cli_bridge::Client::remove_service, this, _1);
         robotkernel::kernel::get_instance()->add_bridge_cbs(sp);
@@ -49,6 +50,10 @@ namespace cli_bridge {
 
 
     Client::~Client() {
+        kernel& k = *kernel::get_instance();
+        k.remove_bridge_cbs(sp);
+        delete sp;
+
         cliServer.stop();
     }
 

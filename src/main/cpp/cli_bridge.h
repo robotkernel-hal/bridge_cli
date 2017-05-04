@@ -37,6 +37,8 @@ namespace cli_bridge {
         cli_bridge::CliServer cliServer;
         typedef std::map<std::string, robotkernel::service_t> ServiceMap;
         ServiceMap services;
+        
+        robotkernel::bridge::cbs_t *sp;
     };
 
 }

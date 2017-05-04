@@ -1,5 +1,3 @@
-
-libdir = $(prefix)/lib
 lib_LTLIBRARIES = libbridge_cli.la
 
 libbridge_cli_la_SOURCES  = cli_bridge.cpp cli_server.cpp
