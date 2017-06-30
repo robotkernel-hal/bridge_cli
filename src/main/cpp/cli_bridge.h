@@ -1,3 +1,26 @@
+//! command line interface robotkernel bridge
+/*!
+ * author: Jan Cremer <jan.cremer@dlr.de>, Robert Burger <robert.burger@dlr.de>
+ */
+
+/*
+ * This file is part of bridge_cli.
+ *
+ * bridge_cli is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * bridge_cli is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with robotkernel.	If not, see <http://www.gnu.org/licenses/>.
+ */
+
+
 #include "robotkernel/kernel.h"
 #include "robotkernel/service.h"
 #include "cli_server.h"
@@ -10,8 +33,11 @@
 #include "robotkernel/bridge_base.h"
 
 namespace cli_bridge {
-    
-    class Client : public robotkernel::bridge_base {
+#ifdef EMACS
+}
+#endif
+
+class Client : public robotkernel::bridge_base {
     private:
         robotkernel::service_t* parseRequest(std::string &msg, robotkernel::service_arglist_t &req);
         void parseArgs(robotkernel::service_t &svc, std::string &args, robotkernel::service_arglist_t &req);
@@ -37,10 +63,11 @@ namespace cli_bridge {
         cli_bridge::CliServer cliServer;
         typedef std::map<std::string, robotkernel::service_t> ServiceMap;
         ServiceMap services;
-        
-        robotkernel::bridge::cbs_t *sp;
-    };
+};
 
+#ifdef EMACS
+{
+#endif
 }
 
 #endif
