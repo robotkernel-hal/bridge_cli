@@ -33,6 +33,8 @@
 #include <string>
 #include <functional>
 
+#include <robotkernel/runnable.h>
+
 namespace cli_bridge {
 #ifdef EMACS
 }
@@ -66,14 +68,14 @@ class CliConnection {
         bool write(const char* msg, size_t len);
 };    
 
-class CliServer {
+class CliServer :
+    public robotkernel::runnable
+{
 
     private:
         int socketFD;
         struct sockaddr_in addr;
-        bool stopRequested;
-        pthread_t serverThread;
-        static void* run(void* args);
+        void run();
 
     public:
         Client* client;
@@ -82,8 +84,6 @@ class CliServer {
 
         CliServer(Client* client, int port);
         ~CliServer();
-        void start();
-        void stop();
         void onConnect(CliConnection* client);
         void onDisconnect(CliConnection *client);
 

@@ -27,7 +27,8 @@ using namespace string_util;
 using namespace cli_bridge;
 
 CliServer::CliServer(Client*client, int port) : 
-    socketFD(-1), addr(), stopRequested(false), client(client), 
+    runnable(0, 0, client->name), 
+    socketFD(-1), addr(), client(client), 
     onConnectHandler(NULL), onDisconnectHandler(NULL) 
 {
     if(port < 0 || port > 0xffff){
@@ -53,35 +54,21 @@ CliServer::~CliServer() {
     }
 }
 
-void *CliServer::run(void *args) {
-    CliServer *self = (CliServer *) args;
-    setPriority(50, SCHED_OTHER);
-    setAffinityMask(0xff);
+void CliServer::run() {
+    listen(socketFD, 3);
 
-    listen(self->socketFD, 3);
-
-    self->client->log(info, "CliServer: waiting for connections on port %d ...\n", ntohs(self->addr.sin_port));
-    while (!self->stopRequested) {
+    client->log(info, "CliServer: waiting for connections on port %d ...\n", ntohs(addr.sin_port));
+    while (running()) {
         try {
-            new CliConnection(self->socketFD, self);
+            new CliConnection(socketFD, this);
         } catch (str_exception &e) {
-            if (!self->stopRequested) {
-                self->client->log(warning, "%s\n", e.what());
+            if (running()) {
+                client->log(warning, "%s\n", e.what());
                 sleep(1);
             }
         }
     }
-    return NULL;
-}
-
-void CliServer::start() {
-    pthread_create(&serverThread, NULL, CliServer::run, this);
-}
-
-void CliServer::stop() {
-    this->stopRequested = true;
-    pthread_cancel(serverThread);
-
+    
     while (!CliConnection::all.empty()) {
         CliConnection *c = CliConnection::all.front();
         c->close();
