@@ -2,7 +2,7 @@ PTVERSION           = 2
 NAME                = @PACKAGE@
 VERSION             = @PACKAGE_VERSION@
 DESCRIPTION         = robotkernel @PACKAGE@
-MAINTAINER          = @MAINTAINER@
+MAINTAINER          = @PACKAGE_BUGREPORT@
 DEPENDS             = libstring_util == 1.1, yaml-cpp == 0.5.3, robotkernel == 5
 ARCHS               = osl42-x86_64
 

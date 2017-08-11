@@ -3,7 +3,7 @@
 
 AC_PREREQ([2.63])
 AC_INIT(
-	[service_provider_cli],
+	[bridge_cli],
 	m4_esyscmd_s([cat project.properties | grep VERSION    | cut -d'=' -f2 | xargs printf "%s"]),
 	m4_esyscmd_s([cat project.properties | grep MAINTAINER | cut -d'=' -f2 | xargs printf "%s"]))
 AM_INIT_AUTOMAKE([-Wall -Werror foreign subdir-objects])
