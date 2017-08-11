@@ -1,0 +1,18 @@
+requires_version 0.2.43
+# this include file can be customized with the following defines:
+#   bridge_cli_base
+#     (optional) path to bridge_cli base directory
+#     e.g. /volume/software/robotkernel/packages/bridge_cli/5.0.0
+#     defaults to rmpm structure
+#   bridge_cli_library_path
+#     (optional) add custom search paths
+
+defines
+bridge_cli_base:          %(dirname %(dirname %(CURDIR)))
+bridge_cli_libdir:        %(subst "${exec_prefix}/", "", "@libdir@")
+bridge_cli_type:          %(ifexists "%(bridge_cli_base)/%(bridge_cli_libdir)/libbridge_cli.so", "local_install", "rmpm_release")
+bridge_cli_library_path:  %(ifeq "%(bridge_cli_type)", "local_install", "%(bridge_cli_base)/%(bridge_cli_libdir)", "%(bridge_cli_base)/lib/$(ARCH)")
+
+ifndef rk_library_path: rk_library_path: ""
+rk_library_path: %(rk_library_path):%(bridge_cli_library_path)
+
