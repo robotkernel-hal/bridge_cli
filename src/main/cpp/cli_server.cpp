@@ -46,6 +46,13 @@ CliServer::CliServer(Client*client, int port) :
         client->log(warning, "Unable to bind socket on port %d (ERRNO: %d)", ntohs(addr.sin_port), errno);
         addr.sin_port = htons((uint16_t) (port+i));
     }
+
+    // set timeouts
+    struct timeval timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 10000;
+    setsockopt(socketFD, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    setsockopt(socketFD, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
 }
 
 CliServer::~CliServer() {
@@ -63,7 +70,7 @@ void CliServer::run() {
             new CliConnection(socketFD, this);
         } catch (str_exception &e) {
             if (running()) {
-                client->log(warning, "%s\n", e.what());
+                //client->log(warning, "%s\n", e.what());
                 sleep(1);
             }
         }
