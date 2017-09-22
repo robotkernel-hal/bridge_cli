@@ -41,34 +41,29 @@ namespace cli_bridge {
 #endif
 
 class Client;
-class CliServer;
+class cli_server;
 
-class CliConnection {
+class cli_connection 
+{
     private:
         int connFD;
         struct sockaddr_in addr;
         bool stopRequested;
         pthread_t connectionThread;
         pthread_mutex_t lock;
-        CliServer* cliServer;
+        cli_server* cliServer;
 
         static void* run(void* args);
 
-
     public:
-        std::function<void(CliConnection*, char*, ssize_t)> messageHandler;
-        typedef std::list<CliConnection*> List;
-        static CliConnection::List all;
-        static pthread_mutex_t allConnectionsLock;
-
-        CliConnection(int socketFD, CliServer* cliServer);
-        ~CliConnection();
+        cli_connection(int socketFD, cli_server* cliServer);
+        ~cli_connection();
         void close();
         std::string getRemoteName();
         bool write(const char* msg, size_t len);
 };    
 
-class CliServer :
+class cli_server :
     public robotkernel::runnable
 {
 
@@ -79,14 +74,12 @@ class CliServer :
 
     public:
         Client* client;
-        std::function<void(CliConnection*)> onConnectHandler;
-        std::function<void(CliConnection*)> onDisconnectHandler;
+        cli_server(Client* client, int port);
+        ~cli_server();
 
-        CliServer(Client* client, int port);
-        ~CliServer();
-        void onConnect(CliConnection* client);
-        void onDisconnect(CliConnection *client);
-
+        typedef std::list<cli_connection*> List;
+        cli_server::List all;
+        pthread_mutex_t allConnectionsLock;
 };
 
 #ifdef EMACS
@@ -94,5 +87,5 @@ class CliServer :
 #endif
 }
 
+#endif // PROJECT_CLISERVER_H
 
-#endif //PROJECT_CLISERVER_H

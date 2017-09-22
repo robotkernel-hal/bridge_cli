@@ -2,6 +2,11 @@
 // Created by crem_ja on 2/2/17.
 //
 
+#ifdef __VXWORKS__
+#include <vxWorks.h>
+#include <sockLib.h>
+#endif
+
 #include "cli_bridge.h"
 #include "cli_server.h"
 #include <unistd.h>
@@ -26,11 +31,10 @@ using namespace string_util;
 
 using namespace cli_bridge;
 
-CliServer::CliServer(Client*client, int port) : 
+cli_server::cli_server(Client*client, int port) : 
     runnable(0, 0, client->name), 
-    socketFD(-1), addr(), client(client), 
-    onConnectHandler(NULL), onDisconnectHandler(NULL) 
-{
+    socketFD(-1), addr(), client(client)
+{    
     if(port < 0 || port > 0xffff){
         throw str_exception("Invalid port number: %d", port);
     }
@@ -38,6 +42,9 @@ CliServer::CliServer(Client*client, int port) :
     if (socketFD == -1) {
         throw str_exception("Unable zo create CLI interface socket (ERRNO: %d)", errno);
     }
+
+    pthread_mutex_init(&allConnectionsLock, NULL);
+
     bzero(&addr, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = INADDR_ANY;
@@ -55,19 +62,21 @@ CliServer::CliServer(Client*client, int port) :
     setsockopt(socketFD, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
 }
 
-CliServer::~CliServer() {
+cli_server::~cli_server() {
     if (socketFD != -1) {
         close(socketFD);
     }
+
+    pthread_mutex_destroy(&allConnectionsLock);
 }
 
-void CliServer::run() {
+void cli_server::run() {
     listen(socketFD, 3);
 
-    client->log(info, "CliServer: waiting for connections on port %d ...\n", ntohs(addr.sin_port));
+    client->log(info, "cli_server: waiting for connections on port %d ...\n", ntohs(addr.sin_port));
     while (running()) {
         try {
-            new CliConnection(socketFD, this);
+            new cli_connection(socketFD, this);
         } catch (str_exception &e) {
             if (running()) {
                 //client->log(warning, "%s\n", e.what());
@@ -75,57 +84,43 @@ void CliServer::run() {
             }
         }
     }
-    
-    while (!CliConnection::all.empty()) {
-        CliConnection *c = CliConnection::all.front();
+
+    while (!all.empty()) {
+        cli_connection *c = all.front();
         c->close();
         delete c;
     }
 }
 
-void CliServer::onConnect(CliConnection* client){
-    if(this->onConnectHandler){
-        this->onConnectHandler(client);
-    }
-}
+// ############# cli_connection
 
-void CliServer::onDisconnect(CliConnection *client){
-    if(this->onDisconnectHandler){
-        this->onDisconnectHandler(client);
-    }
-}
-
-
-// ############# CliConnection
-
-CliConnection::List CliConnection::all;
-pthread_mutex_t CliConnection::allConnectionsLock = PTHREAD_MUTEX_INITIALIZER;
-
-CliConnection::CliConnection(int socketFD, CliServer* server) : connFD(-1), addr(), connectionThread(), lock(PTHREAD_MUTEX_INITIALIZER), cliServer(server), messageHandler(NULL) {
+cli_connection::cli_connection(int socketFD, cli_server* server) : 
+    connFD(-1), addr(), connectionThread(), cliServer(server)
+{
+    pthread_mutex_init(&lock, NULL);
     socklen_t size = sizeof(addr);
     bzero(&addr, size);
     connFD = accept(socketFD, (struct sockaddr *) &addr, &size);
     if (connFD == -1)
-        throw str_exception("CliConnection: accept() error -> %s", strerror(errno));
-    cliServer->client->log(info, "CliConnection: established (%s)\n", getRemoteName().c_str());
-    pthread_create(&connectionThread, NULL, CliConnection::run, this);
+        throw str_exception("cli_connection: accept() error -> %s", strerror(errno));
+    cliServer->client->log(info, "cli_connection: established (%s)\n", getRemoteName().c_str());
+    pthread_create(&connectionThread, NULL, cli_connection::run, this);
 }
 
-CliConnection::~CliConnection() {
+cli_connection::~cli_connection() {
     close();
+    pthread_mutex_destroy(&lock);
 }
 
-void* CliConnection::run(void *args) {
-    CliConnection* self = (CliConnection *) args;
+void* cli_connection::run(void *args) {
+    cli_connection* self = (cli_connection *) args;
     int N = 256*1; //currently max message size maybe not enough for future
     char* buf = new char[N];
     bzero(buf, N);
 
-    lockMutex(allConnectionsLock);
-    CliConnection::all.push_front(self);
-    unlockMutex(allConnectionsLock);
-
-    self->cliServer->onConnect(self);
+    lockMutex(self->cliServer->allConnectionsLock);
+    self->cliServer->all.push_front(self);
+    unlockMutex(self->cliServer->allConnectionsLock);
 
     while(!self->stopRequested){
         ssize_t num = read(self->connFD, buf, N-1);
@@ -138,94 +133,100 @@ void* CliConnection::run(void *args) {
             if(num == -1) {
                 switch (errno) {
                     case ETIMEDOUT:
-                        self->cliServer->client->log(error, "CliConnection: Read timed out (%s)\n", strerror(errno));
+                        self->cliServer->client->log(error, "cli_connection: Read timed out (%s)\n", strerror(errno));
                         continue;
                     case EAGAIN:
                     case EINTR:
                         continue;
                     case ECONNRESET:
-                        self->cliServer->client->log(warning, "CliConnection: Connection reset by %s (%s)\n", self->getRemoteName().c_str(), strerror(errno));
+                        self->cliServer->client->log(warning, "cli_connection: Connection reset by %s (%s)\n", self->getRemoteName().c_str(), strerror(errno));
                         break;
                     default:
-                        self->cliServer->client->log(error, "CliConnection: Error reading data: %s -> closing connection\n",
+                        self->cliServer->client->log(error, "cli_connection: Error reading data: %s -> closing connection\n",
                                 strerror(errno));
                         break;
                 }
             } else if(num == 0){
-                self->cliServer->client->log(info, "CliConnection: Connection closed by %s\n", self->getRemoteName().c_str());
+                self->cliServer->client->log(info, "cli_connection: Connection closed by %s\n", self->getRemoteName().c_str());
             }
             self->close();
             delete self;
             goto FINALLY;
         }
         buf[num] = 0;
-        self->cliServer->client->log(info, "CliConnection: READ: %s\n", buf);
-        if(self->messageHandler){
-            self->messageHandler(self, buf, num);
-        }
+        self->cliServer->client->log(info, "cli_connection: READ: %s\n", buf);
+        self->cliServer->client->onCliMessage(self, buf, num);
     }
-FINALLY: {
-             free(buf);
-             return NULL;
-         }
+
+FINALLY:    
+    free(buf);
+    return NULL;
 }
 
 
-void CliConnection::close() {
+void cli_connection::close() {
     lockMutex(lock);
     if(connFD == -1) {
         return;
     }
-    cliServer->client->log(info, "CliConnection: closing connection to %s\n", getRemoteName().c_str());
+
+    cliServer->client->log(info, "cli_connection: closing connection to %s\n", getRemoteName().c_str());
     this->stopRequested = true;
 
-    cliServer->onDisconnect(this);
-    lockMutex(allConnectionsLock);
-    CliConnection::all.remove_if([this](CliConnection *c) {
-            return this == c;
-            });
-    unlockMutex(allConnectionsLock);
+    lockMutex(cliServer->allConnectionsLock);
+    cliServer->all.remove_if([this](cli_connection *c) { return this == c; });
+    unlockMutex(cliServer->allConnectionsLock);
+
     if(pthread_self() != connectionThread) {
         if (pthread_cancel(connectionThread) == 0) {
             if (pthread_join(connectionThread, NULL) != 0) {
-                cliServer->client->log(warning, "CliConnection: close() Unable to join reader thread: %s", strerror(errno));
+                cliServer->client->log(warning, "cli_connection: close() Unable to join reader thread: %s", strerror(errno));
             }
         } else {
-            cliServer->client->log(warning, "CliConnection: close() Unable to cancel reader thread: %s", strerror(errno));
+            cliServer->client->log(warning, "cli_connection: close() Unable to cancel reader thread: %s", strerror(errno));
         }
     }
     ::close(connFD);
     connFD = -1;
     unlockMutex(lock);
-    cliServer->client->log(info, "CliConnection: connection closed (%s)\n", getRemoteName().c_str());
+    cliServer->client->log(info, "cli_connection: connection closed (%s)\n", getRemoteName().c_str());
 }
 
-std::string CliConnection::getRemoteName(){
-    return std::string(inet_ntoa(addr.sin_addr)) + ":" + std::to_string(ntohs(addr.sin_port));
+std::string cli_connection::getRemoteName(){
+    return std::string(inet_ntoa(addr.sin_addr)) + ":" + 
+        std::to_string(ntohs(addr.sin_port));
 }
 
-bool CliConnection::write(const char *msg, size_t len) {
-    while(len > 0) {
+bool cli_connection::write(const char *msg, size_t len) {
+    while (len > 0) {
         ssize_t num = ::write(connFD, msg, len);
-        if(num == -1) {
+
+        if (num == -1) {
             switch (errno) {
                 case ETIMEDOUT:
-                    cliServer->client->log(error, "CliConnection: Read timed out (%s)\n", strerror(errno));
+                    cliServer->client->log(error, 
+                            "cli_connection: Read timed out (%s)\n", 
+                            strerror(errno));
                     continue;
                 case EAGAIN:
                 case EINTR:
                     continue;
                 case ECONNRESET:
-                    cliServer->client->log(warning, "CliConnection: Connection reset by %s (%s)\n", getRemoteName().c_str(), strerror(errno));
+                    cliServer->client->log(warning, 
+                            "cli_connection: Connection reset by %s (%s)\n", 
+                            getRemoteName().c_str(), strerror(errno));
                     return false;
                 default:
-                    cliServer->client->log(error, "CliConnection: Error writing data: %s -> closing connection\n", strerror(errno));
+                    cliServer->client->log(error, 
+                            "cli_connection: Error writing data: %s -> closing connection\n", 
+                            strerror(errno));
                     return false;
             }
         }
         msg += num;
         len -= num;
     }
+
     return true;
 }
 

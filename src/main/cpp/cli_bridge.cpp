@@ -57,17 +57,18 @@ const string TYPENAME_FLOAT = string("float");
 const string TYPENAME_DOUBLE = string("double");
 const string TYPENAME_VECTOR = string("vector");
 
-Client::Client(const char*& bridgename, YAML::Node& node)
-    : bridge_base(bridgename, "bridge_cli", node), cliServer(this, get_as<int>(node, "port", 5094)) {
-
-        cliServer.onConnectHandler = std::bind(&cli_bridge::Client::onCliConnect, this, _1);
-        cliServer.onDisconnectHandler = std::bind(&cli_bridge::Client::onCliDisconnect, this, _1);
-        cliServer.start();
-    }
+Client::Client(const char*& bridgename, YAML::Node& node) :
+    bridge_base(bridgename, "bridge_cli", node), 
+    cliServer(this, get_as<int>(node, "port", 5094)) 
+{
+    pthread_mutex_init(&service_map_lock, NULL);
+    cliServer.start();
+}
 
 
 Client::~Client() {
     cliServer.stop();
+    pthread_mutex_destroy(&service_map_lock);
 }
 
 
@@ -179,7 +180,7 @@ rk_type Client::parseArg(string &args, string typeName, string paramName, size_t
 }
 
 
-void Client::parseArgs(service_t &svc, std::string &args, service_arglist_t &req) {
+void Client::parseArgs(const service_t &svc, std::string &args, service_arglist_t &req) {
     YAML::Node message_definition = YAML::Load(svc.service_definition);
     if (!message_definition["request"]) {
         return;
@@ -200,13 +201,16 @@ void Client::parseArgs(service_t &svc, std::string &args, service_arglist_t &req
 service_t *Client::parseRequest(string &msg, service_arglist_t &req) {
     unsigned long delim = msg.find(" ");
     std::string param0 = msg.substr(0, delim);
-    ServiceMap::iterator svcIt = services.find(param0);
-    if (svcIt == services.end()) {
+    std::string rest = msg.substr(delim + 1);
+    delim = rest.find(" ");
+    std::string param1 = rest.substr(0, delim);
+    auto svcIt = service_map.find(std::make_pair(param0, param1));
+    if (svcIt == service_map.end()) {
         return NULL;
     }
     service_t &svc = svcIt->second;
 
-    string args = (delim == string::npos ? std::string("") : msg.substr(delim + 1));
+    string args = (delim == string::npos ? std::string("") : rest.substr(delim + 1));
     parseArgs(svc, args, req);
 
     return &svc;
@@ -231,7 +235,7 @@ string parseResponse(service_t *svc, service_arglist_t &resp) {
 }
 
 
-void Client::onCliMessage(cli_bridge::CliConnection *c, char *buf, ssize_t len) {
+void Client::onCliMessage(cli_bridge::cli_connection *c, char *buf, ssize_t len) {
     string msg(buf, (unsigned long) (buf[len - 1] == '\n' ? len - 1 : len));
     msg = strip(msg);
     if (msg.empty()) {
@@ -244,9 +248,9 @@ void Client::onCliMessage(cli_bridge::CliConnection *c, char *buf, ssize_t len) 
         if (!svc) {
             if (msg == string("!list")) {
                 result += "\n";
-                for (ServiceMap::iterator it = services.begin(); it != services.end(); it++) {
-                    service_t &s = it->second;
-                    result += std::string("[") + s.name + std::string("]\n") + s.service_definition + "\n";
+                for (const auto& kv : service_map) {
+                    const service_t &s = kv.second;
+                    result += std::string("[") + s.owner + " " + s.name + std::string("]\n") + s.service_definition + "\n";
                 }
             } else if (msg == string("!help")) {
                 result += "\n";
@@ -257,7 +261,7 @@ void Client::onCliMessage(cli_bridge::CliConnection *c, char *buf, ssize_t len) 
                     string("'\n Use !help to get CLI instructions.\n");
             }
         } else {
-            log(info, "Calling: %s %s", svc->name.c_str(), svc->service_definition.c_str());
+            log(info, "Calling: %s.%s %s", svc->owner.c_str(), svc->name.c_str(), svc->service_definition.c_str());
 
             service_arglist_t resp;
             if (svc->callback(req, resp) != 0) {
@@ -277,21 +281,24 @@ void Client::onCliMessage(cli_bridge::CliConnection *c, char *buf, ssize_t len) 
 }
 
 
-void Client::onCliConnect(cli_bridge::CliConnection *c) {
-    c->messageHandler = std::bind(&cli_bridge::Client::onCliMessage, this, _1, _2, _3);
-}
-
-
-void Client::onCliDisconnect(cli_bridge::CliConnection *c) {
-}
-
 
 void Client::add_service(const robotkernel::service_t &svc) {
-    services[svc.name] = svc;
+    pthread_mutex_lock(&service_map_lock);
+    service_map[std::make_pair(svc.owner, svc.name)] = svc;
+    pthread_mutex_unlock(&service_map_lock);
 }
 
 
 void Client::remove_service(const robotkernel::service_t &svc) {
-    services.erase(svc.name);
+    pthread_mutex_lock(&service_map_lock);
+
+    for (auto it = service_map.begin(); it != service_map.end(); ++it) {
+        if ((it->first.first == svc.owner) && (it->first.second == svc.name)) {
+            service_map.erase(it);
+            break;
+        }
+    }
+
+    pthread_mutex_unlock(&service_map_lock);
 }
 

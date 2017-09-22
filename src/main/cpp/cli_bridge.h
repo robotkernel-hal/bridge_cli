@@ -40,7 +40,7 @@ namespace cli_bridge {
 class Client : public robotkernel::bridge_base {
     private:
         robotkernel::service_t* parseRequest(std::string &msg, robotkernel::service_arglist_t &req);
-        void parseArgs(robotkernel::service_t &svc, std::string &args, robotkernel::service_arglist_t &req);
+        void parseArgs(const robotkernel::service_t &svc, std::string &args, robotkernel::service_arglist_t &req);
         robotkernel::rk_type parseArg(std::string &args, std::string typeName, std::string paramName, size_t *sPos);
         robotkernel::rk_type parseVectorArg(std::string &args, std::string typeName, std::string paramName, size_t *sPos);
         robotkernel::rk_type parseStringArg(std::string &args, std::string &value, size_t *sPos);
@@ -54,15 +54,16 @@ class Client : public robotkernel::bridge_base {
         void add_service(const robotkernel::service_t &svc);
         void remove_service(const robotkernel::service_t &svc);
 
-        void onCliMessage(cli_bridge::CliConnection* c, char* msg, ssize_t len);
-        void onCliConnect(cli_bridge::CliConnection* c);
-        void onCliDisconnect(cli_bridge::CliConnection* c);
+        void onCliMessage(cli_bridge::cli_connection* c, char* msg, ssize_t len);
 
     private:
         //! Server for cli connections
-        cli_bridge::CliServer cliServer;
-        typedef std::map<std::string, robotkernel::service_t> ServiceMap;
-        ServiceMap services;
+        cli_bridge::cli_server cliServer;
+        
+        //! services map
+        typedef std::map<std::pair<std::string, std::string>, robotkernel::service_t> service_map_t;
+        service_map_t service_map;
+        pthread_mutex_t service_map_lock;
 };
 
 #ifdef EMACS
@@ -71,3 +72,4 @@ class Client : public robotkernel::bridge_base {
 }
 
 #endif
+
