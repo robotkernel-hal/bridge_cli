@@ -190,10 +190,13 @@ void Client::parseArgs(const service_t &svc, std::string &args, service_arglist_
     size_t sPos = 0;
     for (YAML::const_iterator it = request.begin(); it != request.end(); ++it) {
         string key = it->first.as<string>();
-        string value = it->second.as<string>();
+        for (const auto& kv : *it) {
+            string key   = kv.first.as<string>();
+            string value = kv.second.as<string>();
 
-        rk_type x = parseArg(args, key, value, &sPos);
-        req.push_back(x);
+            rk_type x = parseArg(args, key, value, &sPos);
+            req.push_back(x);
+        }
     }
 }
 
@@ -227,7 +230,9 @@ string parseResponse(service_t *svc, service_arglist_t &resp) {
     if (mdResp) {
         auto mdIt = mdResp.begin();
         for (auto it = resp.begin(); it != resp.end() && mdIt != mdResp.end(); ++it, ++mdIt) {
-            response << mdIt->second.as<string>() << ": " << it->toString() << endl;
+            for (const auto& kv : *mdIt) {
+                response << kv.second.as<string>() << ": " << it->toString() << endl;
+            }
         }
     }
 
