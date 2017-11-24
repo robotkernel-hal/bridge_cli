@@ -189,7 +189,6 @@ void Client::parseArgs(const service_t &svc, std::string &args, service_arglist_
     const YAML::Node &request = message_definition["request"];
     size_t sPos = 0;
     for (YAML::const_iterator it = request.begin(); it != request.end(); ++it) {
-        string key = it->first.as<string>();
         for (const auto& kv : *it) {
             string key   = kv.first.as<string>();
             string value = kv.second.as<string>();

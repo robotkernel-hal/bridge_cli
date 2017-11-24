@@ -97,6 +97,8 @@ void cli_server::run() {
 cli_connection::cli_connection(int socketFD, cli_server* server) : 
     connFD(-1), addr(), connectionThread(), cliServer(server)
 {
+    stopRequested = false;
+
     pthread_mutex_init(&lock, NULL);
     socklen_t size = sizeof(addr);
     bzero(&addr, size);
