@@ -28,3 +28,4 @@
 /m4/ltversion.m4
 /compile
 /workspace-release
+/**/*.inc.lnc
