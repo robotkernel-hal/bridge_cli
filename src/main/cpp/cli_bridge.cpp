@@ -230,7 +230,7 @@ string parseResponse(service_t *svc, service_arglist_t &resp) {
         auto mdIt = mdResp.begin();
         for (auto it = resp.begin(); it != resp.end() && mdIt != mdResp.end(); ++it, ++mdIt) {
             for (const auto& kv : *mdIt) {
-                response << kv.second.as<string>() << ": " << it->toString() << endl;
+                response << kv.second.as<string>() << ": " << it->to_string() << endl;
             }
         }
     }
