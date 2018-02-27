@@ -1,0 +1,1 @@
+Service bridge which export robotkernel-5 services via a command line interface.
