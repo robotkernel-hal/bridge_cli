@@ -24,7 +24,7 @@ m4_ifdef([PKG_PROG_PKG_CONFIG], [PKG_PROG_PKG_CONFIG])
 m4_ifdef([PKG_INSTALLDIR], [PKG_INSTALLDIR], [pkgconfigdir='${libdir}/pkgconfig' AC_SUBST([pkgconfigdir])])
 
 # Check dependencies
-RK_CHECK_MODULES
+PKG_CHECK_MODULES([ROBOTKERNEL], [robotkernel])
 
 # Checks for header files.
 AC_CHECK_HEADERS([stdlib.h string.h termios.h])
