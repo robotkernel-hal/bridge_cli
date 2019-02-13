@@ -5,7 +5,7 @@ class MainProject(ConanFile):
     name = "bridge_cli"
     license = "GPLv3"
     url = f"https://rmc-github.robotic.dlr.de/robotkernel/{name}"
-    description = "robotkernel-5 is a modular, easy configurable hardware abstraction framework"
+    description = "robotkernel-5 service bridge command line interface"
     settings = "os", "compiler", "build_type", "arch"
     scm = {
         "type": "git",
@@ -15,7 +15,7 @@ class MainProject(ConanFile):
     }
 
     generators = "pkg_config"
-    requires = "libstring_util/1.1.7@common/unstable", "yaml-cpp/0.6.1@jbeder/stable"
+    requires = "robotkernel/[~=5.0]@robotkernel/unstable"
 
     def source(self):
         filedata = None
