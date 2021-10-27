@@ -152,27 +152,25 @@ rk_type Client::parseArg(string &args, string typeName, string paramName, size_t
         std::string arg = args.substr(*sPos, delim);
         *sPos = delim;
         if (typeName == TYPENAME_INT8) {
-            return rk_type((int8_t) atol(arg.c_str()));
-        } else if (typeName == TYPENAME_INT8) {
-            return rk_type((int8_t) atol(arg.c_str()));
+            return rk_type(( int8_t ) strtol(arg.c_str(), NULL, 0));
         } else if (typeName == TYPENAME_INT16) {
-            return rk_type((int16_t) atol(arg.c_str()));
+            return rk_type(( int16_t) strtol(arg.c_str(), NULL, 0));
         } else if (typeName == TYPENAME_INT32) {
-            return rk_type((int32_t) atol(arg.c_str()));
+            return rk_type(( int32_t) strtol(arg.c_str(), NULL, 0));
         } else if (typeName == TYPENAME_INT64) {
-            return rk_type((int64_t) atol(arg.c_str()));
+            return rk_type(( int64_t) strtoll(arg.c_str(), NULL, 0));
         } else if (typeName == TYPENAME_UINT8) {
-            return rk_type((uint8_t) atol(arg.c_str()));
+            return rk_type((uint8_t ) strtoul(arg.c_str(), NULL, 0));
         } else if (typeName == TYPENAME_UINT16) {
-            return rk_type((uint16_t) atol(arg.c_str()));
+            return rk_type((uint16_t) strtoul(arg.c_str(), NULL, 0));
         } else if (typeName == TYPENAME_UINT32) {
-            return rk_type((uint32_t) atol(arg.c_str()));
+            return rk_type((uint32_t) strtoul(arg.c_str(), NULL, 0));
         } else if (typeName == TYPENAME_UINT64) {
-            return rk_type((uint64_t) atol(arg.c_str()));
+            return rk_type((uint64_t) strtoull(arg.c_str(), NULL, 0));
         } else if (typeName == TYPENAME_FLOAT) {
-            return rk_type((float) atof(arg.c_str()));
+            return rk_type((   float) strtof(arg.c_str(), NULL));
         } else if (typeName == TYPENAME_DOUBLE) {
-            return rk_type(atof(arg.c_str()));
+            return rk_type((  double) strtod(arg.c_str(), NULL));
         } else {
             throw str_exception("Unsupported type <%s> (Not implemented yet)", typeName.c_str());
         }
