@@ -40,37 +40,9 @@ using namespace std::placeholders;
 using namespace robotkernel;
 using namespace string_util;
 
-BRIDGE_DEF(cli_bridge, cli_bridge::Client);
+BRIDGE_DEF(cli_bridge, cli_bridge::cli);
 
 using namespace cli_bridge;
-
-const string TYPENAME_STRING = string("string");
-const string TYPENAME_INT8 = string("int8_t");
-const string TYPENAME_INT16 = string("int16_t");
-const string TYPENAME_INT32 = string("int32_t");
-const string TYPENAME_INT64 = string("int64_t");
-const string TYPENAME_UINT8 = string("uint8_t");
-const string TYPENAME_UINT16 = string("uint16_t");
-const string TYPENAME_UINT32 = string("uint32_t");
-const string TYPENAME_UINT64 = string("uint64_t");
-const string TYPENAME_FLOAT = string("float");
-const string TYPENAME_DOUBLE = string("double");
-const string TYPENAME_VECTOR = string("vector");
-
-Client::Client(const char*& bridgename, YAML::Node& node) :
-    bridge_base(bridgename, "bridge_cli", node), 
-    cliServer(this, get_as<int>(node, "port", 5094)) 
-{
-    pthread_mutex_init(&service_map_lock, NULL);
-    cliServer.start();
-}
-
-
-Client::~Client() {
-    cliServer.stop();
-    pthread_mutex_destroy(&service_map_lock);
-}
-
 
 static std::string escape(std::string in) {
     const int N = 3;
@@ -89,8 +61,35 @@ static void skipWhitespace(string &args, size_t *sPos) {
     }
 }
 
+const string TYPENAME_STRING = string("string");
+const string TYPENAME_INT8 = string("int8_t");
+const string TYPENAME_INT16 = string("int16_t");
+const string TYPENAME_INT32 = string("int32_t");
+const string TYPENAME_INT64 = string("int64_t");
+const string TYPENAME_UINT8 = string("uint8_t");
+const string TYPENAME_UINT16 = string("uint16_t");
+const string TYPENAME_UINT32 = string("uint32_t");
+const string TYPENAME_UINT64 = string("uint64_t");
+const string TYPENAME_FLOAT = string("float");
+const string TYPENAME_DOUBLE = string("double");
+const string TYPENAME_VECTOR = string("vector");
 
-rk_type Client::parseVectorArg(string &args, string typeName, string paramName, size_t *sPos) {
+cli::cli(const char*& bridgename, YAML::Node& node) :
+    bridge_base(bridgename, "bridge_cli", node)
+{
+    server_port = get_as<int>(node, "port", 5094);
+}
+
+cli::~cli() {
+    server->stop();
+}
+
+void cli::init() {
+    server = make_shared<cli_bridge::cli_server>(shared_from_this(), server_port);
+    server->start();
+}
+
+rk_type cli::parseVectorArg(string &args, string typeName, string paramName, size_t *sPos) {
     char c = args[*sPos];
     if (c != '{') {
         throw str_exception("Parse error for argument: %s -> Vectors must use {} braces", paramName.c_str());
@@ -115,8 +114,7 @@ rk_type Client::parseVectorArg(string &args, string typeName, string paramName, 
     return rk_type(result);
 }
 
-
-rk_type Client::parseStringArg(string &args, string &value, size_t *sPos) {
+rk_type cli::parseStringArg(string &args, string &value, size_t *sPos) {
     if (args[*sPos] != '"') {
         throw str_exception("Parse error for argument: %s -> Strings must use quotation marks", value.c_str());
     }
@@ -136,7 +134,7 @@ rk_type Client::parseStringArg(string &args, string &value, size_t *sPos) {
 }
 
 
-rk_type Client::parseArg(string &args, string typeName, string paramName, size_t *sPos) {
+rk_type cli::parseArg(string &args, string typeName, string paramName, size_t *sPos) {
     skipWhitespace(args, sPos);
 
     if (*sPos >= args.length() || *sPos == string::npos) {
@@ -178,7 +176,7 @@ rk_type Client::parseArg(string &args, string typeName, string paramName, size_t
 }
 
 
-void Client::parseArgs(const service_t &svc, std::string &args, service_arglist_t &req) {
+void cli::parseArgs(const service_t &svc, std::string &args, service_arglist_t &req) {
     YAML::Node message_definition = YAML::Load(svc.service_definition);
     if (!message_definition["request"]) {
         return;
@@ -198,7 +196,7 @@ void Client::parseArgs(const service_t &svc, std::string &args, service_arglist_
 }
 
 
-service_t *Client::parseRequest(string &msg, service_arglist_t &req) {
+service_t *cli::parseRequest(string &msg, service_arglist_t &req) {
     unsigned long delim = msg.find(" ");
     std::string param0 = msg.substr(0, delim);
     std::string rest = msg.substr(delim + 1);
@@ -237,7 +235,7 @@ string parseResponse(service_t *svc, service_arglist_t &resp) {
 }
 
 
-void Client::onCliMessage(cli_bridge::cli_connection *c, char *buf, ssize_t len) {
+void cli::onCliMessage(cli_bridge::cli_connection *c, char *buf, ssize_t len) {
     string msg(buf, (unsigned long) (buf[len - 1] == '\n' ? len - 1 : len));
     msg = strip(msg);
     if (msg.empty()) {
@@ -275,7 +273,7 @@ void Client::onCliMessage(cli_bridge::cli_connection *c, char *buf, ssize_t len)
         }
 
         c->write(result.c_str(), result.length());
-    } catch (str_exception e) {
+    } catch (str_exception& e) {
         const string &err = format_string("Exception in service call: %s\n%s\n", msg.c_str(), e.what());
         log(warning, "CliBridge: %s", err.c_str());
         c->write(err.c_str(), err.length());
@@ -284,15 +282,14 @@ void Client::onCliMessage(cli_bridge::cli_connection *c, char *buf, ssize_t len)
 
 
 
-void Client::add_service(const robotkernel::service_t &svc) {
-    pthread_mutex_lock(&service_map_lock);
+void cli::add_service(const robotkernel::service_t &svc) {
+    std::unique_lock<std::mutex> lock(service_map_mutex);
     service_map[std::make_pair(svc.owner, svc.name)] = svc;
-    pthread_mutex_unlock(&service_map_lock);
 }
 
 
-void Client::remove_service(const robotkernel::service_t &svc) {
-    pthread_mutex_lock(&service_map_lock);
+void cli::remove_service(const robotkernel::service_t &svc) {
+    std::unique_lock<std::mutex> lock(service_map_mutex);
 
     for (auto it = service_map.begin(); it != service_map.end(); ++it) {
         if ((it->first.first == svc.owner) && (it->first.second == svc.name)) {
@@ -300,7 +297,5 @@ void Client::remove_service(const robotkernel::service_t &svc) {
             break;
         }
     }
-
-    pthread_mutex_unlock(&service_map_lock);
 }
 

@@ -30,6 +30,7 @@
 #include <list>
 #include <deque>
 #include <mutex>
+#include <memory>
 #include <string>
 #include <functional>
 
@@ -40,46 +41,54 @@ namespace cli_bridge {
 }
 #endif
 
-class Client;
+class cli;
 class cli_server;
 
-class cli_connection 
+class cli_connection : 
+    public std::enable_shared_from_this<cli_connection>,
+    public robotkernel::runnable
 {
     private:
-        int connFD;
+        int conn_fd;
         struct sockaddr_in addr;
-        bool stopRequested;
-        pthread_t connectionThread;
-        pthread_mutex_t lock;
-        cli_server* cliServer;
+        std::mutex connection_mutex;
+        std::shared_ptr<cli_server> server;
 
-        static void* run(void* args);
-
+        void run();
     public:
-        cli_connection(int socketFD, cli_server* cliServer);
+        cli_connection(int srv_fd, std::shared_ptr<cli_server> cliServer);
         ~cli_connection();
-        void close();
         std::string getRemoteName();
         bool write(const char* msg, size_t len);
 };    
 
 class cli_server :
+    public std::enable_shared_from_this<cli_server>,
     public robotkernel::runnable
 {
 
     private:
-        int socketFD;
+        int srv_fd;
         struct sockaddr_in addr;
         void run();
 
     public:
-        Client* client;
-        cli_server(Client* client, int port);
+        std::shared_ptr<cli> parent;
+        cli_server(std::shared_ptr<cli> parent, int port);
         ~cli_server();
 
-        typedef std::list<cli_connection*> List;
+        //! \brief Try to create a new CLI connection
+        void add_connection();
+
+        //! \brief Release a CLI connection
+        /*!
+         * \param[in] conn      Conection to release.
+         */
+        void release_connection(std::shared_ptr<cli_connection> conn);
+
+        typedef std::list<std::shared_ptr<cli_connection> > List;
         cli_server::List all;
-        pthread_mutex_t allConnectionsLock;
+        std::mutex connection_list_mutex;
 };
 
 #ifdef EMACS

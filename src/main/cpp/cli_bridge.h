@@ -20,36 +20,42 @@
  * along with robotkernel.	If not, see <http://www.gnu.org/licenses/>.
  */
 
-
-#include "robotkernel/kernel.h"
-#include "robotkernel/service.h"
-#include "cli_server.h"
-
 #ifndef ROBOTKERNEL_CLI_BRIDGE_H
 #define ROBOTKERNEL_CLI_BRIDGE_H
 
+#include <memory>
 
 #include "robotkernel/rk_type.h"
 #include "robotkernel/bridge_base.h"
+#include "robotkernel/kernel.h"
+#include "robotkernel/service.h"
+#include "cli_server.h"
 
 namespace cli_bridge {
 #ifdef EMACS
 }
 #endif
 
-class Client : public robotkernel::bridge_base {
+class cli : 
+    public std::enable_shared_from_this<cli>,
+    public robotkernel::bridge_base 
+{
     private:
         robotkernel::service_t* parseRequest(std::string &msg, robotkernel::service_arglist_t &req);
         void parseArgs(const robotkernel::service_t &svc, std::string &args, robotkernel::service_arglist_t &req);
         robotkernel::rk_type parseArg(std::string &args, std::string typeName, std::string paramName, size_t *sPos);
         robotkernel::rk_type parseVectorArg(std::string &args, std::string typeName, std::string paramName, size_t *sPos);
         robotkernel::rk_type parseStringArg(std::string &args, std::string &value, size_t *sPos);
+
     public:
         //! construct cli_bridge client
-        Client(const char*& bridgename, YAML::Node& node);
+        cli(const char*& bridgename, YAML::Node& node);
 
         //! destruct cli_bridge client
-        ~Client();
+        ~cli();
+
+        //! init method
+        void init();
 
         void add_service(const robotkernel::service_t &svc);
         void remove_service(const robotkernel::service_t &svc);
@@ -58,12 +64,15 @@ class Client : public robotkernel::bridge_base {
 
     private:
         //! Server for cli connections
-        cli_bridge::cli_server cliServer;
+        std::shared_ptr<cli_bridge::cli_server> server;
+
+        //! Port on server should listen
+        int server_port;
         
         //! services map
         typedef std::map<std::pair<std::string, std::string>, robotkernel::service_t> service_map_t;
         service_map_t service_map;
-        pthread_mutex_t service_map_lock;
+        std::mutex service_map_mutex;
 };
 
 #ifdef EMACS
