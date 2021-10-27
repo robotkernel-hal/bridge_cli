@@ -5,8 +5,7 @@ class MainProject(ConanFile):
     python_requires_extend = "conan_template.RobotkernelConanFile"
 
     name = "bridge_cli"
-    description = "robotkernel-5 service bridge command line interface"
+    description = "robotkernel service bridge command line interface"
     exports_sources = ["*", "!.gitignore"]
+    requires = "robotkernel/[~=6]@robotkernel/unstable"
 
-    def requirements(self):
-        self.requires("robotkernel/[~6]@robotkernel/unstable")
