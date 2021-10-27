@@ -124,7 +124,11 @@ void* cli_connection::run(void *args) {
     self->cliServer->all.push_front(self);
     unlockMutex(self->cliServer->allConnectionsLock);
 
+    std::string prompt = "robotkernel$ ";
+
     while(!self->stopRequested){
+        self->write(prompt.c_str(), prompt.size());
+
         ssize_t num = read(self->connFD, buf, N-1);
         if(num == N-1){
             self->cliServer->client->log(error, "Input buffer too small for message!");
