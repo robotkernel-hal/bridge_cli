@@ -49,16 +49,21 @@ class cli_connection :
     public robotkernel::runnable
 {
     private:
-        int conn_fd;
-        struct sockaddr_in addr;
-        std::mutex connection_mutex;
-        std::shared_ptr<cli_server> server;
+        int conn_fd;                        //!< \brief Connection socket file descriptor.
+        struct sockaddr_in addr;            //!< \brief Socket address information.
+        std::mutex connection_mutex;        //!< \brief Connection mutual exclusion lock.
+        std::shared_ptr<cli_server> server; //!< \brief Parent server instance.
 
+        //! \brief Connection handle thread.
         void run();
+
     public:
         cli_connection(int srv_fd, std::shared_ptr<cli_server> cliServer);
+
         ~cli_connection();
+        
         std::string getRemoteName();
+
         bool write(const char* msg, size_t len);
 };    
 
@@ -66,29 +71,23 @@ class cli_server :
     public std::enable_shared_from_this<cli_server>,
     public robotkernel::runnable
 {
-
     private:
         int srv_fd;
         struct sockaddr_in addr;
+
+        //! \brief Server thread which creates and destroyes connection threads if needed.
         void run();
 
     public:
         std::shared_ptr<cli> parent;
+
+        typedef std::list<std::shared_ptr<cli_connection> > connection_list_t;
+        cli_server::connection_list_t all;      //!< \brief List with all active connections.
+        std::mutex connection_list_mutex;       //!< \brief Mutex to lock list on access.
+
+    public:
         cli_server(std::shared_ptr<cli> parent, int port);
         ~cli_server();
-
-        //! \brief Try to create a new CLI connection
-        void add_connection();
-
-        //! \brief Release a CLI connection
-        /*!
-         * \param[in] conn      Conection to release.
-         */
-        void release_connection(std::shared_ptr<cli_connection> conn);
-
-        typedef std::list<std::shared_ptr<cli_connection> > List;
-        cli_server::List all;
-        std::mutex connection_list_mutex;
 };
 
 #ifdef EMACS

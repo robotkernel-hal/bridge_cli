@@ -44,6 +44,9 @@ BRIDGE_DEF(cli_bridge, cli_bridge::cli);
 
 using namespace cli_bridge;
 
+// forward declarations
+static rk_type parse_arg(string &args, string typeName, string paramName, size_t *sPos);
+
 static std::string escape(std::string in) {
     const int N = 3;
     const string escapeStrings[N] = {"\n", "\r", "\t"};
@@ -81,7 +84,6 @@ cli::cli(const char*& bridgename, YAML::Node& node) :
 }
 
 cli::~cli() {
-    server->stop();
 }
 
 void cli::init() {
@@ -89,7 +91,13 @@ void cli::init() {
     server->start();
 }
 
-rk_type cli::parseVectorArg(string &args, string typeName, string paramName, size_t *sPos) {
+//! deinit method
+void cli::deinit() {
+    server->stop();
+    server = nullptr;
+}
+
+static rk_type parse_vector_arg(string &args, string typeName, string paramName, size_t *sPos) {
     char c = args[*sPos];
     if (c != '{') {
         throw str_exception("Parse error for argument: %s -> Vectors must use {} braces", paramName.c_str());
@@ -108,33 +116,63 @@ rk_type cli::parseVectorArg(string &args, string typeName, string paramName, siz
         } else if (c == '}') {
             break;
         } else {
-            result.push_back(parseArg(args, typeName, paramName + format_string("[%d]", i), sPos));
+            result.push_back(parse_arg(args, typeName, paramName + format_string("[%d]", i), sPos));
         }
     }
     return rk_type(result);
 }
 
-rk_type cli::parseStringArg(string &args, string &value, size_t *sPos) {
-    if (args[*sPos] != '"') {
+//! \brief Parse next argument as quoted string.
+/*!
+ * \param[in]       args    Complete request argument string.
+ * \param[in]       value   Value field name.
+ * \param[in,out]   s_pos   Starting position for search.
+ * \return Parsed string as rk_type.
+ */
+static rk_type parse_string_arg_quoted(const string &args, const string &value, size_t& sPos) {
+    if (args[sPos] != '"') {
         throw str_exception("Parse error for argument: %s -> Strings must use quotation marks", value.c_str());
     }
-    unsigned long strStart = (*sPos)++;
+
+    unsigned long strStart = sPos++;
     bool escape = false;
-    while (*sPos < args.length()) {
-        char c = args[*sPos];
+
+    while (sPos < args.length()) {
+        char c = args[sPos];
         if (c == '"' && !escape) {
-            string arg = args.substr(strStart + 1, (*sPos) - 1);
+            string arg = args.substr(strStart + 1, sPos - 1);
             rk_type rkType(arg);
             return rkType;
         }
+
         escape = c == '\\' && !escape;
-        (*sPos)++;
+        sPos++;
     }
+
     throw str_exception("Parse error for argument: %s -> Strings must use quotation marks", value.c_str());
 }
 
+//! \brief Parse next argument as string.
+/*!
+ * \param[in]       args    Complete request argument string.
+ * \param[in]       value   Value field name.
+ * \param[in,out]   s_pos   Starting position for search.
+ * \return Parsed string as rk_type.
+ */
+static rk_type parse_string_arg(string &args, string &value, size_t *s_pos) {
+    if (args[*s_pos] == '"') {
+        return parse_string_arg_quoted(args, value, *s_pos);
+    }
 
-rk_type cli::parseArg(string &args, string typeName, string paramName, size_t *sPos) {
+    // string in not quoted so just take until next space
+    unsigned long delim = args.find(" ");
+    std::string arg = args.substr(*s_pos, delim);
+    *s_pos = delim;
+    rk_type rkType(arg);
+    return rkType;
+}
+
+static rk_type parse_arg(string &args, string typeName, string paramName, size_t *sPos) {
     skipWhitespace(args, sPos);
 
     if (*sPos >= args.length() || *sPos == string::npos) {
@@ -142,9 +180,9 @@ rk_type cli::parseArg(string &args, string typeName, string paramName, size_t *s
     }
 
     if (TYPENAME_VECTOR.compare(0, TYPENAME_VECTOR.size(), typeName) == 0) {
-        return parseVectorArg(args, typeName.substr(TYPENAME_VECTOR.size()), paramName, sPos);
+        return parse_vector_arg(args, typeName.substr(TYPENAME_VECTOR.size()), paramName, sPos);
     } else if (typeName == TYPENAME_STRING) {
-        return parseStringArg(args, paramName, sPos);
+        return parse_string_arg(args, paramName, sPos);
     } else {
         unsigned long delim = args.find(" ");
         std::string arg = args.substr(*sPos, delim);
@@ -176,7 +214,7 @@ rk_type cli::parseArg(string &args, string typeName, string paramName, size_t *s
 }
 
 
-void cli::parseArgs(const service_t &svc, std::string &args, service_arglist_t &req) {
+static void parse_args(const service_t &svc, std::string &args, service_arglist_t &req) {
     YAML::Node message_definition = YAML::Load(svc.service_definition);
     if (!message_definition["request"]) {
         return;
@@ -189,14 +227,40 @@ void cli::parseArgs(const service_t &svc, std::string &args, service_arglist_t &
             string key   = kv.first.as<string>();
             string value = kv.second.as<string>();
 
-            rk_type x = parseArg(args, key, value, &sPos);
+            rk_type x = parse_arg(args, key, value, &sPos);
             req.push_back(x);
         }
     }
 }
 
+//void cli::parse_args(const service_t &svc, std::string &args, service_arglist_t &req) {
+//    YAML::Node message_definition = YAML::Load(svc.service_definition);
+//    if (!message_definition["request"]) {
+//        return;
+//    }
+//
+//    auto req_args = YAML::Load(args);
+//
+//    const YAML::Node &request = message_definition["request"];
+//    auto it = request.begin();
+//    auto it2 = req_args.begin();
+//    for (; it != request.end(), it2 != req_args.end(); ++it, ++it2) {
+//        for (const auto& kv : *it) {
+//            string key   = kv.first.as<string>();
+//            string value = kv.second.as<string>();
+//
+//            printf("trying to add value %s\n", value.c_str());
+//
+//            req.push_back((*it2)[value]);
+//
+////            rk_type x = parse_arg(args, key, value, &sPos);
+////            req.push_back(x);
+//        }
+//    }
+//}
 
-service_t *cli::parseRequest(string &msg, service_arglist_t &req) {
+
+service_t *cli::parse_request(string &msg, service_arglist_t &req) {
     unsigned long delim = msg.find(" ");
     std::string param0 = msg.substr(0, delim);
     std::string rest = msg.substr(delim + 1);
@@ -209,33 +273,55 @@ service_t *cli::parseRequest(string &msg, service_arglist_t &req) {
     service_t &svc = svcIt->second;
 
     string args = (delim == string::npos ? std::string("") : rest.substr(delim + 1));
-    parseArgs(svc, args, req);
+    parse_args(svc, args, req);
 
     return &svc;
 }
 
 
-string parseResponse(service_t *svc, service_arglist_t &resp) {
+string parse_response(service_t *svc, service_arglist_t &resp) {
     stringstream response;
-    response << "OK" << endl;
 
     YAML::Node message_definition = YAML::Load(svc->service_definition);
     const YAML::Node &mdResp = message_definition["response"];
 
+    YAML::Emitter out;
+
     if (mdResp) {
         auto mdIt = mdResp.begin();
+        out << YAML::BeginSeq;
+
         for (auto it = resp.begin(); it != resp.end() && mdIt != mdResp.end(); ++it, ++mdIt) {
+            out << YAML::BeginMap;
             for (const auto& kv : *mdIt) {
-                response << kv.second.as<string>() << ": " << it->to_string() << endl;
+                //response << kv.second.as<string>() << ": " << it->to_string() << endl;
+                if (it->type() == typeid(std::vector<rk_type>)) {
+                    rk_type& rt = *it;
+                    std::vector<rk_type> v = rt;
+
+                    out << YAML::Key << kv.second.as<string>() << YAML::Value; 
+                    out << YAML::BeginSeq;
+
+                    for (unsigned int i = 0; i < v.size(); ++i){
+                        out << v[i].to_string();
+                    }
+
+                    out << YAML::EndSeq;
+                } else {
+                    out << YAML::Key << kv.second.as<string>() << YAML::Value << it->to_string();
+                }
             }
+            out << YAML::EndMap;
         }
+        out << YAML::EndSeq;
     }
 
+    response << out.c_str() << endl;
     return response.str();
 }
 
 
-void cli::onCliMessage(cli_bridge::cli_connection *c, char *buf, ssize_t len) {
+void cli::handle_request(std::shared_ptr<cli_bridge::cli_connection> c, char *buf, ssize_t len) {
     string msg(buf, (unsigned long) (buf[len - 1] == '\n' ? len - 1 : len));
     msg = strip(msg);
     if (msg.empty()) {
@@ -243,7 +329,7 @@ void cli::onCliMessage(cli_bridge::cli_connection *c, char *buf, ssize_t len) {
     }
     try {
         service_arglist_t req;
-        service_t *svc = parseRequest(msg, req);
+        service_t *svc = parse_request(msg, req);
         string result;
         if (!svc) {
             if (msg == string("!list")) {
@@ -269,7 +355,7 @@ void cli::onCliMessage(cli_bridge::cli_connection *c, char *buf, ssize_t len) {
                         "CliBridge: Internal error in service call. See previous messages in error log for details.");
             }
 
-            result = parseResponse(svc, resp);
+            result = parse_response(svc, resp);
         }
 
         c->write(result.c_str(), result.length());
@@ -293,7 +379,7 @@ void cli::remove_service(const robotkernel::service_t &svc) {
 
     for (auto it = service_map.begin(); it != service_map.end(); ++it) {
         if ((it->first.first == svc.owner) && (it->first.second == svc.name)) {
-            service_map.erase(it);
+            it = service_map.erase(it);
             break;
         }
     }

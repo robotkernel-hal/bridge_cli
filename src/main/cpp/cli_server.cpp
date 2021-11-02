@@ -20,10 +20,9 @@ using namespace cli_bridge;
 using namespace std;
 
 cli_server::cli_server(std::shared_ptr<cli_bridge::cli> parent, int port) : 
-    runnable(0, 0, parent->name), 
-    srv_fd(-1), addr(), parent(parent)
+    runnable(0, 0, parent->name), srv_fd(-1), addr(), parent(parent)
 {    
-    if(port < 0 || port > 0xffff){
+    if (port < 0 || port > 0xffff){
         throw str_exception("Invalid port number: %d", port);
     }
 
@@ -31,6 +30,9 @@ cli_server::cli_server(std::shared_ptr<cli_bridge::cli> parent, int port) :
     if (srv_fd == -1) {
         throw str_exception("Unable zo create CLI interface socket (ERRNO: %d)", errno);
     }
+
+    int optval = 1;
+    setsockopt(srv_fd, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval));
 
     bzero(&addr, sizeof(addr));
     addr.sin_family = AF_INET;
@@ -50,47 +52,44 @@ cli_server::cli_server(std::shared_ptr<cli_bridge::cli> parent, int port) :
 }
 
 cli_server::~cli_server() {
+    stop();
+
     if (srv_fd != -1) {
         close(srv_fd);
     }
 }
 
+//! \brief Server thread which creates and destroyes connection threads if needed.
 void cli_server::run() {
     listen(srv_fd, 3);
 
     parent->log(info, "cli_server: waiting for connections on port %d ...\n", ntohs(addr.sin_port));
+
     while (running()) {
+        // check all connection if they are still alive
+        {
+            std::unique_lock<std::mutex> lock(connection_list_mutex);
+            all.remove_if([&](const std::shared_ptr<cli_connection>& c) { return !c->running(); });
+        }
+
         try {
-            add_connection();
+            auto conn = make_shared<cli_connection>(srv_fd, shared_from_this());
+
+            std::unique_lock<std::mutex> lock(connection_list_mutex);
+            all.push_front(conn);
         } catch (str_exception &e) {
             if (running()) {
-                //parent->log(warning, "%s\n", e.what());
                 sleep(1);
             }
         }
     }
 
+    parent->log(info, "cli_server: finishing, cleaning up...\n");
+
     std::unique_lock<std::mutex> lock(connection_list_mutex);
     while (!all.empty()) {
         auto c = all.front();
     }
-}
-
-//! \brief Try to create a new CLI connection
-void cli_server::add_connection() {
-    auto conn = make_shared<cli_connection>(srv_fd, shared_from_this());
-
-    std::unique_lock<std::mutex> lock(connection_list_mutex);
-    all.push_front(conn);
-}
-
-//! \brief Release a CLI connection
-/*!
- * \param[in] conn      Conection to release.
- */
-void cli_server::release_connection(std::shared_ptr<cli_connection> conn) {
-    std::unique_lock<std::mutex> lock(connection_list_mutex);
-    all.remove_if([&](std::shared_ptr<cli_connection> c) { return conn == c; });
 }
 
 // ############# cli_connection
@@ -113,6 +112,8 @@ cli_connection::~cli_connection() {
     std::unique_lock<std::mutex> lock(connection_mutex);
     server->parent->log(info, "cli_connection: closing connection to %s\n", getRemoteName().c_str());
 
+    // stop does not necessarily join, because runnable may alread be exited
+    join();
     stop();
     
     if (conn_fd) {
@@ -159,17 +160,18 @@ void cli_connection::run() {
                 server->parent->log(info, "cli_connection: Connection closed by %s\n", getRemoteName().c_str());
             }
             
-            server->release_connection(shared_from_this());
+            run_flag = false;
             goto FINALLY;
         }
         buf[num] = 0;
         server->parent->log(info, "cli_connection: READ: %s\n", buf);
-        server->parent->onCliMessage(this, buf, num);
+        server->parent->handle_request(shared_from_this(), buf, num);
         write(prompt.c_str(), prompt.size());
     }
 
 FINALLY:    
     free(buf);
+    server->parent->log(info, "cli_connection: thread exited\n");
 }
 
 std::string cli_connection::getRemoteName(){

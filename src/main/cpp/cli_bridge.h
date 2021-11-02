@@ -41,11 +41,8 @@ class cli :
     public robotkernel::bridge_base 
 {
     private:
-        robotkernel::service_t* parseRequest(std::string &msg, robotkernel::service_arglist_t &req);
-        void parseArgs(const robotkernel::service_t &svc, std::string &args, robotkernel::service_arglist_t &req);
-        robotkernel::rk_type parseArg(std::string &args, std::string typeName, std::string paramName, size_t *sPos);
-        robotkernel::rk_type parseVectorArg(std::string &args, std::string typeName, std::string paramName, size_t *sPos);
-        robotkernel::rk_type parseStringArg(std::string &args, std::string &value, size_t *sPos);
+        robotkernel::service_t* parse_request(std::string &msg, robotkernel::service_arglist_t &req);
+        robotkernel::rk_type parse_arg(std::string &args, std::string typeName, std::string paramName, size_t *sPos);
 
     public:
         //! construct cli_bridge client
@@ -57,10 +54,22 @@ class cli :
         //! init method
         void init();
 
+        //! deinit method
+        void deinit();
+
+        //! create and register service
+        /*!
+         * \param svc robotkernel service struct
+         */
         void add_service(const robotkernel::service_t &svc);
+
+        //! unregister and remove service
+        /*!
+         * \param svc robotkernel service struct
+         */
         void remove_service(const robotkernel::service_t &svc);
 
-        void onCliMessage(cli_bridge::cli_connection* c, char* msg, ssize_t len);
+        void handle_request(std::shared_ptr<cli_bridge::cli_connection> c, char* msg, ssize_t len);
 
     private:
         //! Server for cli connections
