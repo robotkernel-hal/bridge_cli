@@ -2,6 +2,24 @@
 // Created by crem_ja on 2/2/17.
 //
 
+/*
+ * This file is part of module_ethercat.
+ *
+ * module_ethercat is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ * 
+ * module_ethercat is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with module_ethercat; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+
 #ifdef __VXWORKS__
 #include <vxWorks.h>
 #include <sockLib.h>
@@ -14,7 +32,6 @@
 #include "robotkernel/helpers.h"
 
 using namespace robotkernel;
-using namespace string_util;
 using namespace cli_bridge;
 using namespace std;
 
@@ -22,12 +39,12 @@ cli_server::cli_server(std::shared_ptr<cli_bridge::cli> parent, int port) :
     runnable(0, 0, parent->name), srv_fd(-1), addr(), parent(parent)
 {    
     if (port < 0 || port > 0xffff){
-        throw str_exception("Invalid port number: %d", port);
+        throw runtime_error(string_printf("Invalid port number: %d", port));
     }
 
     srv_fd = socket(PF_INET, SOCK_STREAM, 0);
     if (srv_fd == -1) {
-        throw str_exception("Unable zo create CLI interface socket (ERRNO: %d)", errno);
+        throw runtime_error(string_printf("Unable zo create CLI interface socket (ERRNO: %d)", errno));
     }
 
     int optval = 1;
@@ -76,7 +93,7 @@ void cli_server::run() {
 
             std::unique_lock<std::mutex> lock(connection_list_mutex);
             all.push_front(conn);
-        } catch (str_exception &e) {
+        } catch (std::exception &e) {
             if (running()) {
                 sleep(1);
             }
@@ -100,7 +117,7 @@ cli_connection::cli_connection(int srv_fd, std::shared_ptr<cli_server> server) :
     bzero(&addr, size);
     conn_fd = accept(srv_fd, (struct sockaddr *) &addr, &size);
     if (conn_fd == -1) {
-        throw str_exception("cli_connection: accept() error -> %s", strerror(errno));
+        throw runtime_error(string_printf("cli_connection: accept() error -> %s", strerror(errno)));
     }
 
     server->parent->log(info, "cli_connection: established (%s)\n", getRemoteName().c_str());

@@ -4,20 +4,21 @@
  */
 
 /*
- * This file is part of bridge_cli.
+ * This file is part of module_ethercat.
  *
- * bridge_cli is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * bridge_cli is distributed in the hope that it will be useful,
+ * module_ethercat is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ * 
+ * module_ethercat is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with robotkernel.	If not, see <http://www.gnu.org/licenses/>.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with module_ethercat; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
 #include "robotkernel/rk_type.h"
@@ -31,14 +32,12 @@
 #include <algorithm> 
 #include <functional> 
 #include <cctype>
-#include "string_util/string_util.h"
 #include <locale>
 #include <vector>
+#include <regex>
 
 using namespace std;
-using namespace std::placeholders;
 using namespace robotkernel;
-using namespace string_util;
 
 BRIDGE_DEF(cli_bridge, cli_bridge::cli);
 
@@ -47,14 +46,23 @@ using namespace cli_bridge;
 // forward declarations
 static rk_type parse_arg(string &args, string typeName, string paramName, size_t *sPos);
 
-static std::string escape(std::string in) {
-    const int N = 3;
-    const string escapeStrings[N] = {"\n", "\r", "\t"};
-    const string replaceStrings[N] = {"\\n", "\\r", "\\t"};
+static std::string trim(const std::string &s)
+{
+    std::string::const_iterator it = s.begin();
+    while (it != s.end() && isspace(*it))
+        it++;
 
-    for (int i = 0; i < N; ++i) {
-        in = string_replace(in, escapeStrings[i], replaceStrings[i]);
-    }
+    std::string::const_reverse_iterator rit = s.rbegin();
+    while (rit.base() != it && isspace(*rit))
+        rit++;
+
+    return std::string(it, rit.base());
+}
+
+static std::string escape(std::string in) {
+    std::regex_replace(in, std::regex("\n"), "\\n");
+    std::regex_replace(in, std::regex("\r"), "\\r");
+    std::regex_replace(in, std::regex("\t"), "\\t");
     return in;
 }
 
@@ -100,14 +108,14 @@ void cli::deinit() {
 static rk_type parse_vector_arg(string &args, string typeName, string paramName, size_t *sPos) {
     char c = args[*sPos];
     if (c != '{') {
-        throw str_exception("Parse error for argument: %s -> Vectors must use {} braces", paramName.c_str());
+        throw runtime_error(string_printf("Parse error for argument: %s -> Vectors must use {} braces", paramName.c_str()));
     }
     vector<rk_type> result;
     (*sPos)++;
     for (int i = 0; true; ++i) {
         skipWhitespace(args, sPos);
         if (*sPos >= args.length() || *sPos == string::npos) {
-            throw str_exception("Parse error for argument: %s -> Vectors must use {} braces", paramName.c_str());
+            throw runtime_error(string_printf("Parse error for argument: %s -> Vectors must use {} braces", paramName.c_str()));
         }
         c = args[*sPos];
         if (c == ',') {
@@ -116,7 +124,7 @@ static rk_type parse_vector_arg(string &args, string typeName, string paramName,
         } else if (c == '}') {
             break;
         } else {
-            result.push_back(parse_arg(args, typeName, paramName + format_string("[%d]", i), sPos));
+            result.push_back(parse_arg(args, typeName, paramName + string_printf("[%d]", i), sPos));
         }
     }
     return rk_type(result);
@@ -131,7 +139,7 @@ static rk_type parse_vector_arg(string &args, string typeName, string paramName,
  */
 static rk_type parse_string_arg_quoted(const string &args, const string &value, size_t& sPos) {
     if (args[sPos] != '"') {
-        throw str_exception("Parse error for argument: %s -> Strings must use quotation marks", value.c_str());
+        throw runtime_error(string_printf("Parse error for argument: %s -> Strings must use quotation marks", value.c_str()));
     }
 
     unsigned long strStart = sPos++;
@@ -149,7 +157,7 @@ static rk_type parse_string_arg_quoted(const string &args, const string &value, 
         sPos++;
     }
 
-    throw str_exception("Parse error for argument: %s -> Strings must use quotation marks", value.c_str());
+    throw runtime_error(string_printf("Parse error for argument: %s -> Strings must use quotation marks", value.c_str()));
 }
 
 //! \brief Parse next argument as string.
@@ -176,7 +184,7 @@ static rk_type parse_arg(string &args, string typeName, string paramName, size_t
     skipWhitespace(args, sPos);
 
     if (*sPos >= args.length() || *sPos == string::npos) {
-        throw str_exception("Too few arguments: Missing %s", paramName.c_str());
+        throw runtime_error(string_printf("Too few arguments: Missing %s", paramName.c_str()));
     }
 
     if (TYPENAME_VECTOR.compare(0, TYPENAME_VECTOR.size(), typeName) == 0) {
@@ -208,7 +216,7 @@ static rk_type parse_arg(string &args, string typeName, string paramName, size_t
         } else if (typeName == TYPENAME_DOUBLE) {
             return rk_type((  double) strtod(arg.c_str(), NULL));
         } else {
-            throw str_exception("Unsupported type <%s> (Not implemented yet)", typeName.c_str());
+            throw runtime_error(string_printf("Unsupported type <%s> (Not implemented yet)", typeName.c_str()));
         }
     }
 }
@@ -323,7 +331,7 @@ string parse_response(service_t *svc, service_arglist_t &resp) {
 
 void cli::handle_request(std::shared_ptr<cli_bridge::cli_connection> c, char *buf, ssize_t len) {
     string msg(buf, (unsigned long) (buf[len - 1] == '\n' ? len - 1 : len));
-    msg = strip(msg);
+    msg = trim(msg);
     if (msg.empty()) {
         return;
     }
@@ -351,7 +359,7 @@ void cli::handle_request(std::shared_ptr<cli_bridge::cli_connection> c, char *bu
 
             service_arglist_t resp;
             if (svc->callback(req, resp) != 0) {
-                throw str_exception(
+                throw runtime_error(
                         "CliBridge: Internal error in service call. See previous messages in error log for details.");
             }
 
@@ -359,8 +367,8 @@ void cli::handle_request(std::shared_ptr<cli_bridge::cli_connection> c, char *bu
         }
 
         c->write(result.c_str(), result.length());
-    } catch (str_exception& e) {
-        const string &err = format_string("Exception in service call: %s\n%s\n", msg.c_str(), e.what());
+    } catch (std::exception& e) {
+        const string &err = string_printf("Exception in service call: %s\n%s\n", msg.c_str(), e.what());
         log(warning, "CliBridge: %s", err.c_str());
         c->write(err.c_str(), err.length());
     }
