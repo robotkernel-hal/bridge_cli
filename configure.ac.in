@@ -36,7 +36,6 @@ AC_CHECK_FUNCS([strdup])
 AC_CHECK_LIB(dl, dlopen)
 
 AC_CONFIG_FILES([Makefile src/Makefile bridge_cli.pc])
-AC_CONFIG_FILES([share/ln/bridge_cli.inc.lnc], [cp share/ln/bridge_cli.inc.lnc ${ac_abs_top_srcdir}/share/ln/])
 
 AC_OUTPUT
 
