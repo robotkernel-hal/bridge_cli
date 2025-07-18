@@ -1,0 +1,61 @@
+bridge-cli (6.0.0~pre1) unstable; urgency=low
+
+  * conan2 support
+  * switching to defaults
+  * switching to conan template
+
+ -- Robert Burger <robert.burger@dlr.de>  Wed, 22 Nov 2023 14:25:54 +0100
+
+bridge-cli (5.0.1) unstable; urgency=low
+
+  * switched to stable robotkernel
+  * updated build targets
+  * added architectures
+  * fixed jenkinsfile
+  * added architectures
+  * build: updated build/ci files for cissy 1.0->2.0
+  * build: updated build/ci files for cissy 1.0->2.0
+  * updated jenkins file
+  * fixed pkg_config search
+  * fixed requires
+  * added missing m4 macro
+  * added conan/jenkins stuff
+
+ -- Robert Burger <robert.burger@dlr.de>  Tue, 29 Oct 2019 06:12:14 +0100
+
+bridge-cli (5.0.0) unstable; urgency=low
+
+  * Prep 5.0.0 release
+  * added cat
+  * changed mediawiki
+  * added SUPPORTED_LANGUAGES
+  * added ignore of generated inc.lnc
+  * latest changes, version fix
+  * inc version
+  * small compile fixse
+  * fixed library path in lnc include file
+  * depnedencies fixed
+  * changes to match yaml 1.2 spec
+  * fixed for c++11 vxworks7 build
+  * fixed pt file
+  * added timeout for socket ops
+  * pt file generation, fixed maintainer
+  * rmpm stuff
+  * added links-and-nodes include file
+  * switched to runnable
+  * changes for latest robotkernel::bridge changes
+  * Merge branch 'master' of rmc-github.robotic.dlr.de:robotkernel/bridge-cli
+  * cleanup fixes
+  * added new dependency resolution
+  * autotools build
+  * removed scritps
+  * changes for robotkernel-5
+  * removed dependency links_and_nodes
+  * added release files!
+  * added ignores, making bridge compile against latest rk changes
+  * Merge branch 'master' of https://rmc-github.robotic.dlr.de/robotkernel/bridge-cli
+  * Initial commit
+  * initial import
+
+ -- Robert Burger <robert.burger@dlr.de>  Mon, 12 Mar 2018 07:49:46 +0100
+
