@@ -27,7 +27,6 @@
 
 #include "robotkernel/rk_type.h"
 #include "robotkernel/bridge_base.h"
-#include "robotkernel/kernel.h"
 #include "robotkernel/service.h"
 #include "cli_server.h"
 

@@ -11,8 +11,7 @@
 #include "cli_server.h"
 #include <unistd.h>
 #include <arpa/inet.h>
-#include "robotkernel/rt_helper.h"
-#include "robotkernel/kernel.h"
+#include "robotkernel/helpers.h"
 
 using namespace robotkernel;
 using namespace string_util;
@@ -164,7 +163,7 @@ void cli_connection::run() {
             goto FINALLY;
         }
         buf[num] = 0;
-        server->parent->log(info, "cli_connection: READ: %s\n", buf);
+        server->parent->log(verbose, "cli_connection: READ: %s\n", buf);
         server->parent->handle_request(shared_from_this(), buf, num);
         write(prompt.c_str(), prompt.size());
     }

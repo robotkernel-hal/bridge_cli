@@ -7,5 +7,5 @@ class MainProject(ConanFile):
     name = "bridge_cli"
     description = "robotkernel service bridge command line interface"
     exports_sources = ["*", "!.gitignore"]
-    requires = "robotkernel/[~=6]@robotkernel/unstable"
+    requires = "robotkernel/[~=6]@robotkernel/snapshot"
 
