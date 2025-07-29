@@ -35,6 +35,7 @@
 #include <locale>
 #include <vector>
 #include <regex>
+#include <inttypes.h>
 
 using namespace std;
 using namespace robotkernel;
@@ -42,9 +43,6 @@ using namespace robotkernel;
 BRIDGE_DEF(cli_bridge, cli_bridge::cli);
 
 using namespace cli_bridge;
-
-// forward declarations
-static rk_type parse_arg(string &args, string typeName, string paramName, size_t *sPos);
 
 static std::string trim(const std::string &s)
 {
@@ -105,123 +103,6 @@ void cli::deinit() {
     server = nullptr;
 }
 
-static rk_type parse_vector_arg(string &args, string typeName, string paramName, size_t *sPos) {
-    char c = args[*sPos];
-    if (c != '{') {
-        throw runtime_error(string_printf("Parse error for argument: %s -> Vectors must use {} braces", paramName.c_str()));
-    }
-    vector<rk_type> result;
-    (*sPos)++;
-    for (int i = 0; true; ++i) {
-        skipWhitespace(args, sPos);
-        if (*sPos >= args.length() || *sPos == string::npos) {
-            throw runtime_error(string_printf("Parse error for argument: %s -> Vectors must use {} braces", paramName.c_str()));
-        }
-        c = args[*sPos];
-        if (c == ',') {
-            (*sPos)++;
-            continue;
-        } else if (c == '}') {
-            break;
-        } else {
-            result.push_back(parse_arg(args, typeName, paramName + string_printf("[%d]", i), sPos));
-        }
-    }
-    return rk_type(result);
-}
-
-//! \brief Parse next argument as quoted string.
-/*!
- * \param[in]       args    Complete request argument string.
- * \param[in]       value   Value field name.
- * \param[in,out]   s_pos   Starting position for search.
- * \return Parsed string as rk_type.
- */
-static rk_type parse_string_arg_quoted(const string &args, const string &value, size_t& sPos) {
-    if (args[sPos] != '"') {
-        throw runtime_error(string_printf("Parse error for argument: %s -> Strings must use quotation marks", value.c_str()));
-    }
-
-    unsigned long strStart = sPos++;
-    bool escape = false;
-
-    while (sPos < args.length()) {
-        char c = args[sPos];
-        if (c == '"' && !escape) {
-            string arg = args.substr(strStart + 1, sPos - 1);
-            rk_type rkType(arg);
-            return rkType;
-        }
-
-        escape = c == '\\' && !escape;
-        sPos++;
-    }
-
-    throw runtime_error(string_printf("Parse error for argument: %s -> Strings must use quotation marks", value.c_str()));
-}
-
-//! \brief Parse next argument as string.
-/*!
- * \param[in]       args    Complete request argument string.
- * \param[in]       value   Value field name.
- * \param[in,out]   s_pos   Starting position for search.
- * \return Parsed string as rk_type.
- */
-static rk_type parse_string_arg(string &args, string &value, size_t *s_pos) {
-    if (args[*s_pos] == '"') {
-        return parse_string_arg_quoted(args, value, *s_pos);
-    }
-
-    // string in not quoted so just take until next space
-    unsigned long delim = args.find(" ");
-    std::string arg = args.substr(*s_pos, delim);
-    *s_pos = delim;
-    rk_type rkType(arg);
-    return rkType;
-}
-
-static rk_type parse_arg(string &args, string typeName, string paramName, size_t *sPos) {
-    skipWhitespace(args, sPos);
-
-    if (*sPos >= args.length() || *sPos == string::npos) {
-        throw runtime_error(string_printf("Too few arguments: Missing %s", paramName.c_str()));
-    }
-
-    if (TYPENAME_VECTOR.compare(0, TYPENAME_VECTOR.size(), typeName) == 0) {
-        return parse_vector_arg(args, typeName.substr(TYPENAME_VECTOR.size()), paramName, sPos);
-    } else if (typeName == TYPENAME_STRING) {
-        return parse_string_arg(args, paramName, sPos);
-    } else {
-        unsigned long delim = args.find(" ");
-        std::string arg = args.substr(*sPos, delim);
-        *sPos = delim;
-        if (typeName == TYPENAME_INT8) {
-            return rk_type(( int8_t ) strtol(arg.c_str(), NULL, 0));
-        } else if (typeName == TYPENAME_INT16) {
-            return rk_type(( int16_t) strtol(arg.c_str(), NULL, 0));
-        } else if (typeName == TYPENAME_INT32) {
-            return rk_type(( int32_t) strtol(arg.c_str(), NULL, 0));
-        } else if (typeName == TYPENAME_INT64) {
-            return rk_type(( int64_t) strtoll(arg.c_str(), NULL, 0));
-        } else if (typeName == TYPENAME_UINT8) {
-            return rk_type((uint8_t ) strtoul(arg.c_str(), NULL, 0));
-        } else if (typeName == TYPENAME_UINT16) {
-            return rk_type((uint16_t) strtoul(arg.c_str(), NULL, 0));
-        } else if (typeName == TYPENAME_UINT32) {
-            return rk_type((uint32_t) strtoul(arg.c_str(), NULL, 0));
-        } else if (typeName == TYPENAME_UINT64) {
-            return rk_type((uint64_t) strtoull(arg.c_str(), NULL, 0));
-        } else if (typeName == TYPENAME_FLOAT) {
-            return rk_type((   float) strtof(arg.c_str(), NULL));
-        } else if (typeName == TYPENAME_DOUBLE) {
-            return rk_type((  double) strtod(arg.c_str(), NULL));
-        } else {
-            throw runtime_error(string_printf("Unsupported type <%s> (Not implemented yet)", typeName.c_str()));
-        }
-    }
-}
-
-
 static void parse_args(const service_t &svc, std::string &args, service_arglist_t &req) {
     YAML::Node message_definition = YAML::Load(svc.service_definition);
     if (!message_definition["request"]) {
@@ -235,38 +116,95 @@ static void parse_args(const service_t &svc, std::string &args, service_arglist_
             string key   = kv.first.as<string>();
             string value = kv.second.as<string>();
 
-            rk_type x = parse_arg(args, key, value, &sPos);
-            req.push_back(x);
+            if (TYPENAME_VECTOR.compare(0, TYPENAME_VECTOR.size(), key) == 0) {
+                char c = args[sPos];
+                if (c != '{') {
+                    throw runtime_error(string_printf("Parse error for argument: %s -> Vectors must use {} braces", key.c_str()));
+                }
+
+#define add_type(name, type, func, ...)                                                         \
+                if (name == key) {                                                              \
+                    vector<type> result;                                                        \
+                    sPos++;                                                                     \
+                    for (int i = 0; true; ++i) {                                                \
+                        skipWhitespace(args, &sPos);                                            \
+                        if (sPos >= args.length() || sPos == string::npos) {                    \
+                            throw runtime_error(string_printf("Parse error for argument: %s ->" \
+                                        " Vectors must use {} braces", key.c_str()));           \
+                        }                                                                       \
+                        c = args[sPos];                                                         \
+                        if (c == ',') {                                                         \
+                            sPos++;                                                             \
+                            continue;                                                           \
+                        } else if (c == '}') {                                                  \
+                            break;                                                              \
+                        } else {                                                                \
+                            result.push_back((type)func(args.c_str(), __VA_ARGS__));            \
+                        }                                                                       \
+                    }                                                                           \
+                    req.push_back(result);                                                      \
+                }
+
+                add_type(TYPENAME_INT8, int8_t, strtol, NULL, 0)
+                else add_type(TYPENAME_INT16, int16_t, strtol, NULL, 0)
+                else add_type(TYPENAME_INT32, int32_t, strtol, NULL, 0)
+                else add_type(TYPENAME_INT64, int64_t, strtoll, NULL, 0)
+                else add_type(TYPENAME_UINT8, uint8_t, strtoul, NULL, 0)
+                else add_type(TYPENAME_UINT16, uint16_t, strtoul, NULL, 0)
+                else add_type(TYPENAME_UINT32, uint32_t, strtoul, NULL, 0)
+                else add_type(TYPENAME_UINT64, uint64_t, strtoull, NULL, 0)
+                else add_type(TYPENAME_FLOAT, float, strtof, NULL)
+                else add_type(TYPENAME_DOUBLE, double, strtod, NULL)
+                else { throw runtime_error(string_printf("Unsupported type <%s> (Not implemented yet)", key.c_str())); }
+
+#undef add_type
+            } else if (key == TYPENAME_STRING) {
+                if (args[sPos] == '"') {
+                    unsigned long strStart = sPos++;
+                    bool escape = false;
+                    bool finish = false;
+
+                    while (sPos < args.length()) {
+                        char c = args[sPos];
+                        if (c == '"' && !escape) {
+                            req.push_back(args.substr(strStart + 1, sPos - 1));
+                            finish = true;
+                            break;
+                        }
+
+                        escape = c == '\\' && !escape;
+                        sPos++;
+                    }
+
+                    if (!finish) {
+                        throw runtime_error(string_printf("Parse error for argument: %s -> Strings must use quotation marks", value.c_str()));
+                    }
+                } else {
+                    // string in not quoted so just take until next space
+                    unsigned long delim = args.find(" ");
+                    req.push_back(args.substr(sPos, delim));
+                    sPos = delim;
+                }
+            } else {
+#define add_type(name, type, func, ...) \
+            if (name == key) { req.push_back((type)(func(value.c_str(), __VA_ARGS__))); }
+
+                add_type(TYPENAME_INT8, int8_t, strtol, NULL, 0)
+                else add_type(TYPENAME_INT16, int16_t, strtol, NULL, 0)
+                else add_type(TYPENAME_INT32, int32_t, strtol, NULL, 0)
+                else add_type(TYPENAME_INT64, int64_t, strtoll, NULL, 0)
+                else add_type(TYPENAME_UINT8, uint8_t, strtoul, NULL, 0)
+                else add_type(TYPENAME_UINT16, uint16_t, strtoul, NULL, 0)
+                else add_type(TYPENAME_UINT32, uint32_t, strtoul, NULL, 0)
+                else add_type(TYPENAME_UINT64, uint64_t, strtoull, NULL, 0)
+                else add_type(TYPENAME_FLOAT, float, strtof, NULL)
+                else add_type(TYPENAME_DOUBLE, double, strtod, NULL)
+                else { throw runtime_error(string_printf("Unsupported type <%s> (Not implemented yet)", key.c_str())); }
+            }
+#undef add_type
         }
     }
 }
-
-//void cli::parse_args(const service_t &svc, std::string &args, service_arglist_t &req) {
-//    YAML::Node message_definition = YAML::Load(svc.service_definition);
-//    if (!message_definition["request"]) {
-//        return;
-//    }
-//
-//    auto req_args = YAML::Load(args);
-//
-//    const YAML::Node &request = message_definition["request"];
-//    auto it = request.begin();
-//    auto it2 = req_args.begin();
-//    for (; it != request.end(), it2 != req_args.end(); ++it, ++it2) {
-//        for (const auto& kv : *it) {
-//            string key   = kv.first.as<string>();
-//            string value = kv.second.as<string>();
-//
-//            printf("trying to add value %s\n", value.c_str());
-//
-//            req.push_back((*it2)[value]);
-//
-////            rk_type x = parse_arg(args, key, value, &sPos);
-////            req.push_back(x);
-//        }
-//    }
-//}
-
 
 service_t *cli::parse_request(string &msg, service_arglist_t &req) {
     unsigned long delim = msg.find(" ");
@@ -303,21 +241,31 @@ string parse_response(service_t *svc, service_arglist_t &resp) {
             out << YAML::BeginMap;
             for (const auto& kv : *mdIt) {
                 //response << kv.second.as<string>() << ": " << it->to_string() << endl;
-                if (it->type() == typeid(std::vector<rk_type>)) {
-                    rk_type& rt = *it;
-                    std::vector<rk_type> v = rt;
-
-                    out << YAML::Key << kv.second.as<string>() << YAML::Value; 
-                    out << YAML::BeginSeq;
-
-                    for (unsigned int i = 0; i < v.size(); ++i){
-                        out << v[i].to_string();
-                    }
-
-                    out << YAML::EndSeq;
-                } else {
+#define add_type(name, type, fmt)                                               \
+                if ((name) == typeid(std::vector<type>)) {                      \
+                    std::vector<type> v = *it;                                  \
+                    out << YAML::Key << kv.second.as<string>() << YAML::Value;  \
+                    out << YAML::BeginSeq;                                      \
+                    for (unsigned int i = 0; i < v.size(); ++i){                \
+                        out << string_printf(fmt, v[i]);                        \
+                    }                                                           \
+                    out << YAML::EndSeq;                                        \
+                }
+                
+                add_type(it->type(), int8_t, "%" PRId8)
+                else add_type(it->type(), int16_t, "%" PRId16)
+                else add_type(it->type(), int32_t, "%" PRId32)
+                else add_type(it->type(), int64_t, "%" PRId64)
+                else add_type(it->type(), uint8_t, "%" PRIu8)
+                else add_type(it->type(), uint16_t, "%" PRIu16)
+                else add_type(it->type(), uint32_t, "%" PRIu32)
+                else add_type(it->type(), uint64_t, "%" PRIu64)
+                else add_type(it->type(), float, "%f")
+                else add_type(it->type(), double, "%lf")
+                else {
                     out << YAML::Key << kv.second.as<string>() << YAML::Value << it->to_string();
                 }
+#undef add_type
             }
             out << YAML::EndMap;
         }
@@ -346,16 +294,19 @@ void cli::handle_request(std::shared_ptr<cli_bridge::cli_connection> c, char *bu
                     const service_t &s = kv.second;
                     result += std::string("[") + s.owner + " " + s.name + std::string("]\n") + s.service_definition + "\n";
                 }
+            } else if (msg == string("!quit")) {
+                c->stop();
             } else if (msg == string("!help")) {
                 result += "\n";
                 result += "'!help': Print this help.\n";
                 result += "'!list': Get a list of available services.\n";
+                result += "'!quit': Quit CLI.\n";
             } else {
                 result = std::string("ERR: Command or service not found: '") + escape(msg) +
                     string("'\n Use !help to get CLI instructions.\n");
             }
         } else {
-            log(info, "Calling: %s.%s %s", svc->owner.c_str(), svc->name.c_str(), svc->service_definition.c_str());
+            log(verbose, "calling: %s.%s %s", svc->owner.c_str(), svc->name.c_str(), svc->service_definition.c_str());
 
             service_arglist_t resp;
             if (svc->callback(req, resp) != 0) {
