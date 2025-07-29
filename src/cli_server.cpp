@@ -105,6 +105,8 @@ void cli_server::run() {
     std::unique_lock<std::mutex> lock(connection_list_mutex);
     while (!all.empty()) {
         auto c = all.front();
+        all.pop_front(); 
+        c->stop();
     }
 }
 
@@ -141,7 +143,7 @@ cli_connection::~cli_connection() {
 }
 
 void cli_connection::run() {
-    int N = 256*1; //currently max message size maybe not enough for future
+    int N = 256; //currently max message size maybe reallocated later
     char* buf = new char[N];
     bzero(buf, N);
 
@@ -149,40 +151,57 @@ void cli_connection::run() {
     write(prompt.c_str(), prompt.size());
 
     while(running()){
-        ssize_t num = read(conn_fd, buf, N-1);
-        if(num == N-1){
-            server->parent->log(error, "Input buffer too small for message!");
-            //TODO reallocate input buffer for messages greater than N
-            //char* buf = realloc()
-        }
-        if (num <= 0){
-            if(num == -1) {
-                switch (errno) {
-                    case ETIMEDOUT:
-                        server->parent->log(error, "cli_connection: Read timed out (%s)\n", strerror(errno));
-                        continue;
-                    case EAGAIN:
-                    case EINTR:
-                        continue;
-                    case ECONNRESET:
-                        server->parent->log(warning, "cli_connection: Connection reset by %s (%s)\n", getRemoteName().c_str(), strerror(errno));
-                        break;
-                    default:
-                        server->parent->log(error, "cli_connection: Error reading data: %s -> closing connection\n",
-                                strerror(errno));
-                        break;
-                }
-            } else if(num == 0){
-                server->parent->log(info, "cli_connection: Connection closed by %s\n", getRemoteName().c_str());
+        fd_set set;
+        struct timeval timeout;
+
+        FD_ZERO(&set); /* clear the set */
+        FD_SET(conn_fd, &set); /* add our file descriptor to the set */
+
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 10000;
+
+        int rv = select(conn_fd + 1, &set, NULL, NULL, &timeout);
+        if(rv == -1)
+            perror("select"); /* an error accured */
+        else if(rv == 0)
+            continue; /* a timeout occured */
+        else {
+            ssize_t num = read(conn_fd, buf, N);
+            if(num == N){
+                // reallocate input buffer for messages greater than N
+                do {
+                    N *=2;
+                    buf = (char *)realloc(buf, N);
+                } while((num += read(conn_fd, &buf[N/2], (N/2))) == N);
             }
-            
-            run_flag = false;
-            goto FINALLY;
+            if (num <= 0){
+                if(num == -1) {
+                    switch (errno) {
+                        case ETIMEDOUT:
+                            server->parent->log(error, "cli_connection: Read timed out (%s)\n", strerror(errno));
+                            continue;
+                        case EAGAIN:
+                        case EINTR:
+                            continue;
+                        case ECONNRESET:
+                            server->parent->log(warning, "cli_connection: Connection reset by %s (%s)\n", getRemoteName().c_str(), strerror(errno));
+                            break;
+                        default:
+                            server->parent->log(error, "cli_connection: Error reading data: %s -> closing connection\n",
+                                    strerror(errno));
+                            break;
+                    }
+                } else if(num == 0){
+                    server->parent->log(info, "cli_connection: Connection closed by %s\n", getRemoteName().c_str());
+                }
+
+                run_flag = false;
+                goto FINALLY;
+            }
+            server->parent->log(verbose, "cli_connection: READ: %s\n", string(buf, num).c_str());
+            server->parent->handle_request(shared_from_this(), buf, num);
+            write(prompt.c_str(), prompt.size());
         }
-        buf[num] = 0;
-        server->parent->log(verbose, "cli_connection: READ: %s\n", buf);
-        server->parent->handle_request(shared_from_this(), buf, num);
-        write(prompt.c_str(), prompt.size());
     }
 
 FINALLY:    
