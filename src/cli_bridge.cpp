@@ -262,7 +262,15 @@ string parse_response(service_t *svc, service_arglist_t &resp) {
                 else add_type(it->type(), uint64_t, "%" PRIu64)
                 else add_type(it->type(), float, "%f")
                 else add_type(it->type(), double, "%lf")
-                else {
+                else if (it->type() == typeid(std::vector<std::string>)) {
+                    std::vector<std::string> v = *it;
+                    out << YAML::Key << kv.second.as<string>() << YAML::Value;
+                    out << YAML::BeginSeq;
+                    for (unsigned int i = 0; i < v.size(); ++i) {
+                        out << v[i];
+                    }
+                    out << YAML::EndSeq;
+                } else {
                     out << YAML::Key << kv.second.as<string>() << YAML::Value << it->to_string();
                 }
 #undef add_type
