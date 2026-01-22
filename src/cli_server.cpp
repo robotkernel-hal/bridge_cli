@@ -32,6 +32,7 @@
 #include "robotkernel/helpers.h"
 
 using namespace robotkernel;
+using namespace robotkernel::helpers;
 using namespace cli_bridge;
 using namespace std;
 
