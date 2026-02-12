@@ -26,24 +26,16 @@
 
 #include <memory>
 
-#include "robotkernel/rk_type.h"
 #include "robotkernel/bridge_base.h"
 #include "robotkernel/service.h"
 #include "cli_server.h"
 
 namespace cli_bridge {
-#ifdef EMACS
-}
-#endif
 
 class cli : 
     public std::enable_shared_from_this<cli>,
     public robotkernel::bridge_base 
 {
-    private:
-        robotkernel::service_t* parse_request(std::string &msg, robotkernel::service_arglist_t &req);
-        robotkernel::rk_type parse_arg(std::string &args, std::string typeName, std::string paramName, size_t *sPos);
-
     public:
         //! construct cli_bridge client
         cli(const char*& bridgename, YAML::Node& node);
@@ -84,10 +76,7 @@ class cli :
         std::mutex service_map_mutex;
 };
 
-#ifdef EMACS
-{
-#endif
-}
+}; // namespace cli_bridge
 
-#endif
+#endif // ROBOTKERNEL_CLI_BRIDGE_H
 
