@@ -52,7 +52,6 @@ class cli_connection :
     private:
         int conn_fd;                        //!< \brief Connection socket file descriptor.
         struct sockaddr_in addr;            //!< \brief Socket address information.
-        std::mutex connection_mutex;        //!< \brief Connection mutual exclusion lock.
         std::shared_ptr<cli_server> server; //!< \brief Parent server instance.
 
         //! \brief Connection handle thread.

@@ -128,7 +128,6 @@ cli_connection::cli_connection(int srv_fd, std::shared_ptr<cli_server> server) :
 }
 
 cli_connection::~cli_connection() {
-    std::unique_lock<std::mutex> lock(connection_mutex);
     server->parent->log(info, "cli_connection: closing connection to %s\n", getRemoteName().c_str());
 
     // stop does not necessarily join, because runnable may alread be exited
