@@ -1,8 +1,10 @@
-bridge-cli (6.0.0) unstable; urgency=low
+bridge-cli (6.0.0) stable; urgency=low
 
   * conan2 support
   * switching to defaults
   * switching to conan template
+  * fix: delete[] instead of free
+  * fix: only write result if any
 
  -- Robert Burger <robert.burger@dlr.de>  Wed, 22 Nov 2023 14:25:54 +0100
 
