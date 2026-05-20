@@ -205,7 +205,7 @@ void cli_connection::run() {
     }
 
 FINALLY:    
-    free(buf);
+    delete[] buf;
     server->parent->log(info, "cli_connection: thread exited\n");
 }
 

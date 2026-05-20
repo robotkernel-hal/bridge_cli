@@ -93,7 +93,7 @@ void cli::handle_request(std::shared_ptr<cli_bridge::cli_connection> c, char *bu
 
     try {
         std::stringstream ss(msg);
-        std::string svc_owner, svc_name, svc_req, result;
+        std::string svc_owner, svc_name, svc_req, result = "";
         ss >> svc_owner >> svc_name;
         std::getline(ss >> std::ws, svc_req);
 
@@ -106,6 +106,7 @@ void cli::handle_request(std::shared_ptr<cli_bridge::cli_connection> c, char *bu
                     result += std::string("[") + s.owner + " " + s.name + std::string("]\n") + s.service_definition + "\n";
                 }
             } else if (msg == string("!quit")) {
+                log(info, "Client quit!\n");
                 c->stop();
             } else if (msg == string("!help")) {
                 result += "\n";
@@ -132,7 +133,9 @@ void cli::handle_request(std::shared_ptr<cli_bridge::cli_connection> c, char *bu
             result = std::string(emit.c_str()) + "\n";
         }
 
-        c->write(result.c_str(), result.length());
+        if (result.length() > 0) {
+            c->write(result.c_str(), result.length());
+        }
     } catch (std::exception& e) {
         const string &err = string_printf("Exception in service call: %s\n%s\n", msg.c_str(), e.what());
         log(warning, "CliBridge: %s", err.c_str());
