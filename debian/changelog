@@ -5,6 +5,7 @@ bridge-cli (6.0.0) stable; urgency=low
   * switching to conan template
   * fix: delete[] instead of free
   * fix: only write result if any
+  * add: info command for service definitions
 
  -- Robert Burger <robert.burger@dlr.de>  Wed, 22 Nov 2023 14:25:54 +0100
 
