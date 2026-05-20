@@ -105,6 +105,9 @@ void cli::handle_request(std::shared_ptr<cli_bridge::cli_connection> c, char *bu
                     const service_t &s = kv.second;
                     result += std::string("[") + s.owner + " " + s.name + std::string("]\n") + s.service_definition + "\n";
                 }
+            } else if (svc_owner == string("!info")) {
+                auto def = robotkernel::get_service_definition(svc_name);
+                result += def;
             } else if (msg == string("!quit")) {
                 log(info, "Client quit!\n");
                 c->stop();
@@ -112,6 +115,7 @@ void cli::handle_request(std::shared_ptr<cli_bridge::cli_connection> c, char *bu
                 result += "\n";
                 result += "'!help': Print this help.\n";
                 result += "'!list': Get a list of available services.\n";
+                result += "'!info <service definition name>: Get signature for service definition.\n";
                 result += "'!quit': Quit CLI.\n";
             } else {
                 result = std::string("ERR: Command or service not found: '") + escape(msg) +
