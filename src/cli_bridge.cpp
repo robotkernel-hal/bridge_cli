@@ -109,7 +109,7 @@ void cli::handle_request(std::shared_ptr<cli_bridge::cli_connection> c, char *bu
                 auto def = robotkernel::get_service_definition(svc_name);
                 result += def;
             } else if (msg == string("!quit")) {
-                log(info, "Client quit!\n");
+                log(info, "event=cli_client_quit\n");
                 c->stop();
             } else if (msg == string("!help")) {
                 result += "\n";
@@ -123,7 +123,7 @@ void cli::handle_request(std::shared_ptr<cli_bridge::cli_connection> c, char *bu
             }
         } else {
             auto& svc = svc_it->second;
-            log(verbose, "calling: %s.%s %s", svc.owner.c_str(), svc.name.c_str(), svc.service_definition.c_str());
+            log(verbose, "event=execute_service svc_name=%s.%s %s\n", svc.owner.c_str(), svc.name.c_str(), svc.service_definition.c_str());
 
             YAML::Node req = YAML::Load(svc_req), resp;
             if (svc.callback(req, resp) != 0) {
@@ -142,7 +142,7 @@ void cli::handle_request(std::shared_ptr<cli_bridge::cli_connection> c, char *bu
         }
     } catch (std::exception& e) {
         const string &err = string_printf("Exception in service call: %s\n%s\n", msg.c_str(), e.what());
-        log(warning, "CliBridge: %s", err.c_str());
+        log(warning, "event=execute_service exception=\"%s\"", err.c_str());
         c->write(err.c_str(), err.length());
     }
 }
